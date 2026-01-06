@@ -1,0 +1,290 @@
+// Cheffery - auth_controller.dart
+
+// This page defines the AuthController, which manages all authentication-related actions such as login, sign-up, password reset, and logout using Supabase.
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../core/providers/supabase_provider.dart';
+
+// UI state model for loading + error + info message for the login screen.
+class AuthUiState {
+  final bool loading; // Indicates auth action in progress or not
+  final String? message; // Success or information message
+  final String? error; // Error message to display
+
+  const AuthUiState({
+    this.loading = false,
+    this.message,
+    this.error,
+  }); // Constructor with defaults
+
+  const AuthUiState.idle()
+    : this(); // Default idle state (not loading, no messages)
+
+  AuthUiState copyWith({bool? loading, String? message, String? error}) {
+    //Create mutable AuthUiState
+    return AuthUiState(
+      loading: loading ?? this.loading,
+      message: message,
+      error: error,
+    );
+  }
+}
+
+// Riverpod notifier that manages authentication actions and UI state
+class AuthController extends Notifier<AuthUiState> {
+  @override
+  AuthUiState build() => const AuthUiState.idle(); //Initial state when provider is first created
+
+  SupabaseClient get _supabase =>
+      ref.read(supabaseProvider); // Access supabase client from provider
+
+  void clearMessages() {
+    state = state.copyWith(
+      message: null,
+      error: null,
+    ); //Clear any error or success messages
+  }
+
+  Future<void> login({required String email, required String password}) async {
+    state = state.copyWith(
+      loading: true,
+      error: null,
+      message: null,
+    ); //Start loading and reset messages
+
+    // Ensure both email and password are provided
+    if (email.trim().isEmpty) {
+      state = state.copyWith(loading: false, error: 'Please enter your email.');
+      return;
+    }
+    if (password.isEmpty) {
+      state = state.copyWith(
+        loading: false,
+        error: 'Please enter your password.',
+      );
+      return;
+    }
+
+    try {
+      final resp = await _supabase.auth.signInWithPassword(
+        //Attempt login with supabase
+        email: email.trim(), //Trim whitespace on email
+        password: password,
+      );
+
+      // If no session returned, return login failed
+      if (resp.session == null) {
+        state = state.copyWith(
+          loading: false,
+          error: 'Login failed. Please check your email/password.',
+        );
+        return;
+      }
+
+      state = state.copyWith(loading: false); // Login Successful, stop loading
+    } on AuthException catch (e) {
+      state = state.copyWith(
+        loading: false,
+        error: _customAuthError(e.message),
+      ); //Handle supabase auth error
+    } catch (e) {
+      state = state.copyWith(
+        loading: false,
+        error: "Unhandled Error (DEBUG): ${e.toString}",
+      ); // Handle unexpected errors
+    }
+  }
+
+  String _customAuthError(String message) {
+    final m = message.toLowerCase();
+
+    if (m.contains('invalid login credentials')) {
+      return 'Incorrect email or password.';
+    }
+    if (m.contains('email not confirmed')) {
+      return 'Please confirm your email before logging in.';
+    }
+    if (m.contains('too many requests') || m.contains('rate limit')) {
+      return 'Too many attempts. Please wait a bit and try again.';
+    }
+    if (m.contains('network') ||
+        m.contains('socket') ||
+        m.contains('timeout')) {
+      return 'Network error. Check your connection and try again.';
+    }
+
+    // Fallback: generic message to avoid potentially sensitive supabase error messages
+    return 'Login failed. Please try again.';
+  }
+
+  // Function that handles signup
+  Future<void> signUp({required String email, required String password}) async {
+    state = state.copyWith(loading: true, error: null, message: null);
+
+    final e = email.trim();
+
+    // ------ EMAIL VALIDATION ------------
+    final emailRegex = RegExp(r'^[^@]+@[^@]+\.[^@]+$');
+    if (e.isEmpty) {
+      state = state.copyWith(loading: false, error: 'Please enter your email.');
+      return;
+    }
+    if (!emailRegex.hasMatch(e)) {
+      state = state.copyWith(
+        loading: false,
+        error: 'Please enter a valid email address.',
+      );
+      return;
+    }
+
+    // ------ PASSWORD VALIDATION ------------
+    if (password.isEmpty) {
+      state = state.copyWith(loading: false, error: 'Please enter a password.');
+      return;
+    }
+    if (password.length < 8) {
+      state = state.copyWith(
+        loading: false,
+        error: 'Password must be at least 8 characters long.',
+      );
+      return;
+    }
+    if (!RegExp(r'[A-Z]').hasMatch(password)) {
+      state = state.copyWith(
+        loading: false,
+        error: 'Password must contain at least one uppercase letter.',
+      );
+      return;
+    }
+    if (!RegExp(r'[a-z]').hasMatch(password)) {
+      state = state.copyWith(
+        loading: false,
+        error: 'Password must contain at least one lowercase letter.',
+      );
+      return;
+    }
+    if (!RegExp(r'[!@#$%^&*(),.?":{}|<>]').hasMatch(password)) {
+      state = state.copyWith(
+        loading: false,
+        error: 'Password must contain at least one special character.',
+      );
+      return;
+    }
+
+    // ------ SUPABASE SIGNUP ------------
+    try {
+      final resp = await _supabase.auth.signUp(email: e, password: password);
+
+      if (resp.user != null) {
+        state = state.copyWith(
+          loading: false,
+          message: 'Sign up successful! Please check your email to confirm.',
+        );
+      } else {
+        state = state.copyWith(
+          loading: false,
+          error: 'Sign up failed. Please try again.',
+        );
+      }
+    } on AuthException catch (err) {
+      state = state.copyWith(
+        loading: false,
+        error: _customSignupError(err.message),
+      );
+    } catch (e) {
+      state = state.copyWith(
+        loading: false,
+        error: "Unhandled Error (DEBUG): ${e.toString}",
+      );
+    }
+  }
+
+  String _customSignupError(String message) {
+    //Custom error messages for signup errors
+    //Makes supabase errors custom
+    final m = message.toLowerCase();
+
+    if (m.contains('already registered') || m.contains('already exists')) {
+      return 'An account with this email already exists.';
+    }
+    if (m.contains('invalid email')) {
+      return 'Please enter a valid email address.';
+    }
+    if (m.contains('weak password')) {
+      return 'Password does not meet security requirements.';
+    }
+    if (m.contains('rate limit') || m.contains('too many requests')) {
+      return 'Too many attempts. Please wait and try again.';
+    }
+
+    // Fallback: generic message to avoid potentially sensitive supabase error messages
+    return 'Sign up failed. Please try again.';
+  }
+
+  //--------------------
+
+  //Function to handle forgot password logic
+  Future<void> resetPassword({required String email}) async {
+    state = state.copyWith(
+      loading: true,
+      error: null,
+      message: null,
+    ); // Start loading and reset messages
+
+    try {
+      await _supabase.auth.resetPasswordForEmail(
+        email.trim(),
+      ); //Sent password reset email
+
+      state = state.copyWith(
+        loading: false,
+        message: 'If an account exists, a reset email has been sent.',
+      );
+    } on AuthException catch (e) {
+      state = state.copyWith(
+        loading: false,
+        error: "Supabase Error (DEBUG): ${e.message}",
+      ); //Handle supabase error
+    } catch (e) {
+      state = state.copyWith(
+        loading: false,
+        error: "Unhandled Error (DEBUG): ${e.toString}",
+      ); //Handle unexpected error
+    }
+  }
+
+  //Function to handle forgot password logic
+  Future<void> logout() async {
+    state = state.copyWith(
+      loading: true,
+      error: null,
+      message: null,
+    ); //Start loading and reset messages
+
+    try {
+      await _supabase.auth.signOut(); //Sign the user out
+      state = state.copyWith(loading: false); // Stop loading after logout
+    } on AuthException catch (e) {
+      state = state.copyWith(
+        loading: false,
+        error: "Supabase Error (DEBUG): ${e.message}",
+      ); //Handle supabase error
+    } catch (e) {
+      state = state.copyWith(
+        loading: false,
+        error: "Unhandled Error (DEBUG): ${e.toString}",
+      ); //Handle unexpected errors
+    }
+  }
+
+  void setError(String message) {
+    state = state.copyWith(loading: false, error: message, message: null);
+  }
+}
+
+final authControllerProvider = NotifierProvider<AuthController, AuthUiState>(
+  //Public provider exposed to the UI
+  AuthController.new, //Creates AuthController instance
+);
