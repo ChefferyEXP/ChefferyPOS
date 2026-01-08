@@ -17,12 +17,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:v0_0_0_cheffery_pos/core/themes/designs.dart';
-import 'package:v0_0_0_cheffery_pos/public/login_signup_forgotPass/login.dart';
+import 'package:v0_0_0_cheffery_pos/auth/login.dart';
 import 'package:v0_0_0_cheffery_pos/auth/auth_router.dart';
-import 'package:v0_0_0_cheffery_pos/user_front_end/menu/menu.dart';
-import 'package:v0_0_0_cheffery_pos/user_front_end/locations/locations_page.dart';
-import 'package:v0_0_0_cheffery_pos/user_front_end/home/home_page.dart';
-import 'package:v0_0_0_cheffery_pos/user_front_end/profile/profile.dart';
+import 'package:v0_0_0_cheffery_pos/public_front_end/menu/menu.dart';
+import 'package:v0_0_0_cheffery_pos/store_front_end/live/go_live_public.dart';
+import 'package:v0_0_0_cheffery_pos/store_front_end/profile/profile.dart';
+import 'package:v0_0_0_cheffery_pos/store_front_end/setup/store_setup.dart';
+import 'package:v0_0_0_cheffery_pos/admin/admin_home.dart';
 
 Future<void> main() async {
   //Ensures Flutter engine/bindings are ready before doing async work
@@ -70,11 +71,17 @@ class ChefferyPOS extends StatelessWidget {
         // Main logged in area route (menu)
         '/menu': (context) => const MenuPage(),
         // Locations page for location selection
-        '/locations': (context) => const LocationsPage(),
+        '/golive': (context) => const GoLivePublic(),
         // Home page
-        '/home': (context) => const HomePage(),
+        '/home': (context) => const AuthRouter(),
         // Profile Page
         '/profile': (context) => const ProfilePage(),
+
+        // Admin
+        '/admin': (context) => const AdminHomePage(),
+
+        // Store onboarding
+        '/store-setup': (context) => const StoreSetupPage(),
       },
     );
   }

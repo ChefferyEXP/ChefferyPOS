@@ -27,8 +27,7 @@ class _WelcomePageState extends State<WelcomePage>
   ];
 
   void _handleTap() {
-    // Navigate directly to the menu
-    Navigator.pushReplacementNamed(context, '/login');
+    Navigator.pushNamed(context, '/menu');
   }
 
   @override

@@ -13,11 +13,7 @@ class AuthUiState {
   final String? message; // Success or information message
   final String? error; // Error message to display
 
-  const AuthUiState({
-    this.loading = false,
-    this.message,
-    this.error,
-  }); // Constructor with defaults
+  const AuthUiState({this.loading = false, this.message, this.error});
 
   const AuthUiState.idle()
     : this(); // Default idle state (not loading, no messages)
@@ -97,6 +93,7 @@ class AuthController extends Notifier<AuthUiState> {
     }
   }
 
+  // Custom error messages for login
   String _customAuthError(String message) {
     final m = message.toLowerCase();
 
@@ -115,147 +112,11 @@ class AuthController extends Notifier<AuthUiState> {
       return 'Network error. Check your connection and try again.';
     }
 
-    // Fallback: generic message to avoid potentially sensitive supabase error messages
+    // Fallback error to prevent sensitive error messages from supabase
     return 'Login failed. Please try again.';
   }
 
-  // Function that handles signup
-  Future<void> signUp({required String email, required String password}) async {
-    state = state.copyWith(loading: true, error: null, message: null);
-
-    final e = email.trim();
-
-    // ------ EMAIL VALIDATION ------------
-    final emailRegex = RegExp(r'^[^@]+@[^@]+\.[^@]+$');
-    if (e.isEmpty) {
-      state = state.copyWith(loading: false, error: 'Please enter your email.');
-      return;
-    }
-    if (!emailRegex.hasMatch(e)) {
-      state = state.copyWith(
-        loading: false,
-        error: 'Please enter a valid email address.',
-      );
-      return;
-    }
-
-    // ------ PASSWORD VALIDATION ------------
-    if (password.isEmpty) {
-      state = state.copyWith(loading: false, error: 'Please enter a password.');
-      return;
-    }
-    if (password.length < 8) {
-      state = state.copyWith(
-        loading: false,
-        error: 'Password must be at least 8 characters long.',
-      );
-      return;
-    }
-    if (!RegExp(r'[A-Z]').hasMatch(password)) {
-      state = state.copyWith(
-        loading: false,
-        error: 'Password must contain at least one uppercase letter.',
-      );
-      return;
-    }
-    if (!RegExp(r'[a-z]').hasMatch(password)) {
-      state = state.copyWith(
-        loading: false,
-        error: 'Password must contain at least one lowercase letter.',
-      );
-      return;
-    }
-    if (!RegExp(r'[!@#$%^&*(),.?":{}|<>]').hasMatch(password)) {
-      state = state.copyWith(
-        loading: false,
-        error: 'Password must contain at least one special character.',
-      );
-      return;
-    }
-
-    // ------ SUPABASE SIGNUP ------------
-    try {
-      final resp = await _supabase.auth.signUp(email: e, password: password);
-
-      if (resp.user != null) {
-        state = state.copyWith(
-          loading: false,
-          message: 'Sign up successful! Please check your email to confirm.',
-        );
-      } else {
-        state = state.copyWith(
-          loading: false,
-          error: 'Sign up failed. Please try again.',
-        );
-      }
-    } on AuthException catch (err) {
-      state = state.copyWith(
-        loading: false,
-        error: _customSignupError(err.message),
-      );
-    } catch (e) {
-      state = state.copyWith(
-        loading: false,
-        error: "Unhandled Error (DEBUG): ${e.toString}",
-      );
-    }
-  }
-
-  String _customSignupError(String message) {
-    //Custom error messages for signup errors
-    //Makes supabase errors custom
-    final m = message.toLowerCase();
-
-    if (m.contains('already registered') || m.contains('already exists')) {
-      return 'An account with this email already exists.';
-    }
-    if (m.contains('invalid email')) {
-      return 'Please enter a valid email address.';
-    }
-    if (m.contains('weak password')) {
-      return 'Password does not meet security requirements.';
-    }
-    if (m.contains('rate limit') || m.contains('too many requests')) {
-      return 'Too many attempts. Please wait and try again.';
-    }
-
-    // Fallback: generic message to avoid potentially sensitive supabase error messages
-    return 'Sign up failed. Please try again.';
-  }
-
-  //--------------------
-
-  //Function to handle forgot password logic
-  Future<void> resetPassword({required String email}) async {
-    state = state.copyWith(
-      loading: true,
-      error: null,
-      message: null,
-    ); // Start loading and reset messages
-
-    try {
-      await _supabase.auth.resetPasswordForEmail(
-        email.trim(),
-      ); //Sent password reset email
-
-      state = state.copyWith(
-        loading: false,
-        message: 'If an account exists, a reset email has been sent.',
-      );
-    } on AuthException catch (e) {
-      state = state.copyWith(
-        loading: false,
-        error: "Supabase Error (DEBUG): ${e.message}",
-      ); //Handle supabase error
-    } catch (e) {
-      state = state.copyWith(
-        loading: false,
-        error: "Unhandled Error (DEBUG): ${e.toString}",
-      ); //Handle unexpected error
-    }
-  }
-
-  //Function to handle forgot password logic
+  // LOGOUT Functionality
   Future<void> logout() async {
     state = state.copyWith(
       loading: true,
@@ -279,6 +140,7 @@ class AuthController extends Notifier<AuthUiState> {
     }
   }
 
+  //Puts error message on UI
   void setError(String message) {
     state = state.copyWith(loading: false, error: message, message: null);
   }

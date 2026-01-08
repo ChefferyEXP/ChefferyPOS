@@ -1,3 +1,5 @@
+// Work in progress profile page
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -126,7 +128,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
 
               const SizedBox(height: 16),
 
-              // ===== Action card =====
+              // ===== Action card for each option on profile =====
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 child: Container(
@@ -234,7 +236,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   }
 }
 
-/// ===== Action button for profile =====
+/// ===== Action buttons for profile =====
 class _ActionTile extends StatelessWidget {
   final IconData icon;
   final String title;

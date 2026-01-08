@@ -1,11 +1,13 @@
+// Work in progress - Need to over haul this page
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:v0_0_0_cheffery_pos/user_front_end/locations/locations_page.dart';
-import 'package:v0_0_0_cheffery_pos/user_front_end/profile/profile.dart';
+import 'package:v0_0_0_cheffery_pos/store_front_end/live/go_live_public.dart';
+import 'package:v0_0_0_cheffery_pos/store_front_end/profile/profile.dart';
 
-class HomePage extends ConsumerWidget {
-  const HomePage({super.key});
+class StoreHomePage extends ConsumerWidget {
+  const StoreHomePage({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -121,7 +123,7 @@ class HomePage extends ConsumerWidget {
                         onTap: () {
                           Navigator.of(context).push(
                             MaterialPageRoute(
-                              builder: (_) => const LocationsPage(),
+                              builder: (_) => const GoLivePublic(),
                             ),
                           );
                         },

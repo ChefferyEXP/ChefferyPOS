@@ -1,6 +1,6 @@
 // Cheffery - menu.dart
 
-// This page is the main menu shown to authenticated users. UNDER CONSTRUCTION
+// This page is the main menu shown to authenticated users.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,8 +9,8 @@ import 'package:v0_0_0_cheffery_pos/core/themes/designs.dart';
 import 'package:v0_0_0_cheffery_pos/auth/auth_router.dart';
 import 'package:v0_0_0_cheffery_pos/auth/auth_provider.dart';
 import 'package:v0_0_0_cheffery_pos/core/providers/supabase_provider.dart';
-
-import '../profile/profile.dart';
+import 'package:v0_0_0_cheffery_pos/public_front_end/cart/cart_providers.dart';
+import 'package:v0_0_0_cheffery_pos/public_front_end/cart/cart_page.dart';
 
 class MenuPage extends ConsumerStatefulWidget {
   const MenuPage({super.key});
@@ -20,6 +20,8 @@ class MenuPage extends ConsumerStatefulWidget {
 }
 
 class _MenuPageState extends ConsumerState<MenuPage> {
+  final _scaffoldKey = GlobalKey<ScaffoldState>();
+
   bool _loggingOut = false;
 
   final List<String> _categories = const [
@@ -44,36 +46,49 @@ class _MenuPageState extends ConsumerState<MenuPage> {
     final user = ref.watch(currentUserProvider);
     final supabase = ref.read(supabaseProvider);
 
+    final cartCount = ref.watch(cartCountProvider);
+    final cartDisplay = cartCount > 99 ? '99+' : cartCount.toString();
+
     return Scaffold(
+      key: _scaffoldKey,
+
+      // Menu cart slider
+      endDrawer: _CartSlideOver(
+        cartCount: cartCount,
+        onGoToCart: () {
+          // 1) close drawer
+          Navigator.of(context).pop();
+
+          // 2) go to cart page
+          Navigator.of(
+            context,
+          ).push(MaterialPageRoute(builder: (_) => const CartPage()));
+        },
+      ),
+
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [
-              Color(0xFFAEEA00), // yellowish-green
-              Color(0xFF00C853), // green
-            ],
+            colors: [Color(0xFFAEEA00), Color(0xFF00C853)],
           ),
         ),
+
+        // Top menu bar
         child: SafeArea(
           child: Column(
             children: [
-              // ====== Header (logo + search + profile + tabs) ======
               Padding(
                 padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
                 child: Column(
                   children: [
-                    // ===== Top row =====
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
+                        // Back arrow
                         InkWell(
-                          onTap: () {
-                            Navigator.of(
-                              context,
-                            ).pop(); // goes back to Locations
-                          },
+                          onTap: () => Navigator.maybePop(context),
                           borderRadius: BorderRadius.circular(24),
                           child: const Padding(
                             padding: EdgeInsets.all(8),
@@ -87,6 +102,7 @@ class _MenuPageState extends ConsumerState<MenuPage> {
 
                         const SizedBox(width: 2),
 
+                        // Business logo
                         Image.asset(
                           'assets/logos/freshBlendzLogo.png',
                           height: 72,
@@ -95,6 +111,7 @@ class _MenuPageState extends ConsumerState<MenuPage> {
 
                         const SizedBox(width: 10),
 
+                        // Search Bar
                         Expanded(
                           child: Container(
                             height: 44,
@@ -106,58 +123,74 @@ class _MenuPageState extends ConsumerState<MenuPage> {
                             child: TextField(
                               controller: _searchController,
                               textInputAction: TextInputAction.search,
-                              textAlignVertical: TextAlignVertical
-                                  .center, // vertical centering
+                              textAlignVertical: TextAlignVertical.center,
                               decoration: const InputDecoration(
-                                // Search icon
                                 prefixIcon: Icon(
                                   Icons.search,
                                   size: 20,
                                   color: Colors.black54,
                                 ),
-
-                                hintText: 'What’s your flavor today?',
+                                hintText: 'What\'s your flavor today?',
                                 hintStyle: TextStyle(
-                                  fontSize: 12, // hint text size
+                                  fontSize: 14,
                                   color: Colors.black45,
                                 ),
-
                                 border: InputBorder.none,
                                 isDense: true,
-
-                                // controls overall vertical centering
                                 contentPadding: EdgeInsets.symmetric(
                                   horizontal: 0,
                                   vertical: 12,
                                 ),
                               ),
-                              style: const TextStyle(
-                                fontSize: 14, // typed text size
-                                height: 1.2,
-                              ),
+                              style: const TextStyle(fontSize: 14, height: 1.2),
                             ),
                           ),
                         ),
-
                         const SizedBox(width: 8),
 
+                        // Shopping cart
                         InkWell(
                           borderRadius: BorderRadius.circular(999),
                           onTap: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => const ProfilePage(),
-                              ),
-                            );
+                            FocusScope.of(context).unfocus();
+                            _scaffoldKey.currentState?.openEndDrawer();
                           },
-                          child: CircleAvatar(
-                            radius: 22,
-                            backgroundColor: Colors.white.withOpacity(0.95),
-                            child: const Icon(
-                              Icons.person,
-                              color: Colors.black54,
-                              size: 24,
-                            ),
+                          child: Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              CircleAvatar(
+                                radius: 22,
+                                backgroundColor: Colors.white.withOpacity(0.95),
+                                child: const Icon(
+                                  Icons.shopping_cart_outlined,
+                                  color: Colors.black87,
+                                  size: 24,
+                                ),
+                              ),
+                              if (cartCount > 0)
+                                Positioned(
+                                  top: -4,
+                                  right: -4,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                      vertical: 2,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFE53935),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Text(
+                                      cartDisplay,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                            ],
                           ),
                         ),
                       ],
@@ -165,7 +198,7 @@ class _MenuPageState extends ConsumerState<MenuPage> {
 
                     const SizedBox(height: 12),
 
-                    // ===== Tabs =====
+                    // Menu Categories
                     SizedBox(
                       height: 46,
                       child: Row(
@@ -218,7 +251,7 @@ class _MenuPageState extends ConsumerState<MenuPage> {
 
               const SizedBox(height: 8),
 
-              // ====== Page content area ======
+              // ======================= BODY =================================
               Expanded(
                 child: Center(
                   child: Column(
@@ -254,56 +287,119 @@ class _MenuPageState extends ConsumerState<MenuPage> {
 
                                 await supabase.auth.signOut();
                               },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.accent,
-                          padding: AppPadding.button,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: AppRadii.button,
-                          ),
-                        ),
-                        child: _loggingOut
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : const Text('Logout'),
+                        child: const Text('Logout'),
+                      ),
+
+                      const SizedBox(height: 12),
+
+                      ElevatedButton(
+                        onPressed: _loggingOut
+                            ? null
+                            : () {
+                                ref.read(cartCountProvider.notifier).state++;
+                              },
+                        child: const Text('Add to Cart'),
                       ),
                     ],
                   ),
                 ),
               ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
 
-              // ===== Footer =====
-              Padding(
-                padding: const EdgeInsets.only(bottom: 16),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: const [
-                    Text(
-                      'POWERED BY',
+// ================= Menu Cart Slideover handler ==============
+class _CartSlideOver extends StatelessWidget {
+  const _CartSlideOver({required this.cartCount, required this.onGoToCart});
+
+  final int cartCount;
+  final VoidCallback onGoToCart;
+
+  @override
+  Widget build(BuildContext context) {
+    final width = MediaQuery.of(context).size.width;
+    final drawerWidth = width * 0.40;
+
+    return Drawer(
+      width: drawerWidth,
+      backgroundColor: Colors.white,
+      elevation: 16,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(22),
+          bottomLeft: Radius.circular(22),
+        ),
+      ),
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'Your Cart',
                       style: TextStyle(
-                        fontSize: 16,
-                        color: Colors.white,
-                        letterSpacing: 0.6,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
                       ),
-                      textAlign: TextAlign.center,
                     ),
-                    SizedBox(height: 4),
-                    Text(
-                      'CHEFFERY',
-                      style: TextStyle(
-                        fontSize: 30,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white,
-                        letterSpacing: 0.8,
-                      ),
-                      textAlign: TextAlign.center,
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Items: $cartCount',
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: Colors.black54,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Expanded(
+                child: Container(
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF6F6F6),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  padding: const EdgeInsets.all(14),
+                  child: const Text(
+                    'Cart items will show here later.',
+                    style: TextStyle(color: Colors.black54),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: ElevatedButton(
+                  onPressed: onGoToCart,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.black,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                  ],
+                  ),
+                  child: const Text(
+                    'Go to Cart',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
                 ),
               ),
             ],
