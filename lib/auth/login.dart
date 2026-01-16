@@ -1,11 +1,10 @@
 // Cheffery - login.dart
 /*
-This file contains the LoginPage UI
-- It allows:
--- Login
+This file contains the Login UI
+- It only allows for login, because at this point all accounts will be managed by cheffery. Including any signups and password resets required.
 
 This page uses RiverPod + AuthController to perform Supabase actions
-- Listens for user changes to automatically route to the menu page
+- The auth controller listens for user changes to automatically route to the store menu page or admin page
 */
 
 import 'package:flutter/material.dart';
@@ -21,29 +20,21 @@ class LoginPage extends ConsumerStatefulWidget {
   ConsumerState<LoginPage> createState() => _LoginPageState();
 }
 
-// State object for LoginPage - ConsumerState gives 'ref' for read/watch riverpod providers.
 class _LoginPageState extends ConsumerState<LoginPage> {
-  // Input Fields
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
 
   @override
-  // dispose() to clean up resources
   void dispose() {
-    // Dispose controllers to free resources
     _emailController.dispose();
     _passwordController.dispose();
-
     super.dispose();
   }
 
-  // Submit Handler
   Future<void> _submit() async {
-    // Read current inputs
     final email = _emailController.text;
     final password = _passwordController.text;
 
-    // Clear old UI messages before starting new action
     ref.read(authControllerProvider.notifier).clearMessages();
 
     await ref
@@ -51,98 +42,221 @@ class _LoginPageState extends ConsumerState<LoginPage> {
         .login(email: email, password: password);
   }
 
+  InputDecoration _inputDecoration(String hint) {
+    return InputDecoration(
+      hintText: hint,
+      filled: true,
+      fillColor: Colors.white.withOpacity(0.95),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: BorderSide.none,
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: BorderSide(color: Colors.black.withOpacity(0.08)),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: BorderSide(color: AppColors.accent, width: 1.6),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    // Watch UI state from AuthController to rebuild when loading/error/message changes
     final ui = ref.watch(authControllerProvider);
 
-    // ===========================
-    // Build the screen
-    // ===========================
     return Scaffold(
-      // Background of entire page
-      backgroundColor: AppColors.primary,
-
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 32),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              // =============== Title ===============
-              Text('Cheffery POS Store Login', style: AppTextStyles.title),
-              const SizedBox(height: 32),
-
-              // =============== Email Field ===============
-              TextField(
-                controller: _emailController,
-                keyboardType: TextInputType.emailAddress,
-                decoration: const InputDecoration(
-                  hintText: 'Email',
-                  filled: true,
-                  fillColor: Colors.white,
+        child: Stack(
+          children: [
+            // ===== Gradient background =====
+            Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    AppColors.welcomeTopGradient,
+                    AppColors.welcomeBottomGradient,
+                  ],
                 ),
               ),
+            ),
 
-              const SizedBox(height: 16),
-
-              // =============== Password Field ===============
-              TextField(
-                controller: _passwordController,
-                obscureText: true,
-                decoration: const InputDecoration(
-                  hintText: 'Password',
-                  filled: true,
-                  fillColor: Colors.white,
+            // ===== Background logos =====
+            Positioned(
+              top: 40,
+              left: 40,
+              child: Opacity(
+                opacity: 0.35,
+                child: Image.asset('assets/logos/cheffery.png', width: 260),
+              ),
+            ),
+            Positioned(
+              bottom: 40,
+              right: 40,
+              child: Opacity(
+                opacity: 0.35,
+                child: Image.asset(
+                  'assets/logos/freshBlendzLogo.png',
+                  width: 320,
                 ),
               ),
+            ),
 
-              const SizedBox(height: 16),
-
-              // =============== Error Message ===============
-              if (ui.error != null)
-                Text(
-                  ui.error!,
-                  style: const TextStyle(color: Colors.red),
-                  textAlign: TextAlign.center,
+            // ===== logo soft overlay for visual appeal =====
+            Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.white.withOpacity(0.06),
+                    Colors.black.withOpacity(0.06),
+                  ],
                 ),
+              ),
+            ),
 
-              // =============== Success / Info Message ===============
-              if (ui.message != null)
-                Text(
-                  ui.message!,
-                  style: const TextStyle(color: Colors.green),
-                  textAlign: TextAlign.center,
+            // ===== Login Card =====
+            Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 24,
                 ),
-
-              const SizedBox(height: 24),
-
-              // =============== Submit Button ===============
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: ui.loading ? null : _submit,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.accent,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: AppRadii.button,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 520),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 28,
+                      vertical: 26,
                     ),
-                    padding: AppPadding.button,
-                  ),
-                  child: ui.loading
-                      ? const SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 2,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.10),
+                      borderRadius: BorderRadius.circular(22),
+                      border: Border.all(color: Colors.white.withOpacity(0.18)),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.10),
+                          blurRadius: 26,
+                          offset: const Offset(0, 14),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // =============== Title ===============
+                        Center(
+                          child: Text(
+                            'Cheffery POS Store Login',
+                            style: AppTextStyles.title.copyWith(
+                              fontSize:
+                                  36, // adjust down as needed (e.g. 24–28)
+                              fontWeight: FontWeight.w600,
+                            ),
+                            textAlign: TextAlign.center,
                           ),
-                        )
-                      : Text('Login', style: AppTextStyles.button),
+                        ),
+                        const SizedBox(height: 28),
+
+                        // =============== Email Field ===============
+                        TextField(
+                          controller: _emailController,
+                          keyboardType: TextInputType.emailAddress,
+                          textInputAction: TextInputAction.next,
+                          decoration: _inputDecoration('Email'),
+                        ),
+
+                        const SizedBox(height: 14),
+
+                        // =============== Password Field ===============
+                        TextField(
+                          controller: _passwordController,
+                          obscureText: true,
+                          textInputAction: TextInputAction.done,
+                          onSubmitted: (_) => ui.loading ? null : _submit(),
+                          decoration: _inputDecoration('Password'),
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        // =============== Error Message ===============
+                        if (ui.error != null)
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.red.withOpacity(0.12),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: Colors.red.withOpacity(0.22),
+                              ),
+                            ),
+                            child: Text(
+                              ui.error!,
+                              style: const TextStyle(color: Colors.white),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+
+                        // =============== Success / Info Message ===============
+                        if (ui.message != null)
+                          Container(
+                            margin: EdgeInsets.only(
+                              top: ui.error != null ? 12 : 0,
+                            ),
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.green.withOpacity(0.12),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: Colors.green.withOpacity(0.22),
+                              ),
+                            ),
+                            child: Text(
+                              ui.message!,
+                              style: const TextStyle(color: Colors.white),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+
+                        const SizedBox(height: 22),
+
+                        // =============== Submit Button ===============
+                        SizedBox(
+                          height: 56,
+                          child: ElevatedButton(
+                            onPressed: ui.loading ? null : _submit,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.accent,
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                            ),
+                            child: ui.loading
+                                ? const SizedBox(
+                                    width: 24,
+                                    height: 24,
+                                    child: CircularProgressIndicator(
+                                      color: Colors.white,
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : Text('Login', style: AppTextStyles.button),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

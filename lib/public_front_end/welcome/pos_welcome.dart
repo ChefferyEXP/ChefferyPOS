@@ -1,4 +1,7 @@
-// welcome page, slide show and when you tap you can see enter/see menu
+// Cheffery - pos_welcome.dart
+//
+// This page is designed as the home screen from the POS public front end.
+// Tap anywhere on screen to proceed to phone number entry
 
 import 'package:flutter/material.dart';
 import 'package:v0_0_0_cheffery_pos/core/themes/designs.dart';
@@ -22,12 +25,12 @@ class _WelcomePageState extends State<WelcomePage>
   );
 
   final List<String> _logos = [
-    'assets/logos/cheffery.png',
     'assets/logos/freshBlendzLogo.png',
+    'assets/logos/cheffery.png',
   ];
 
   void _handleTap() {
-    Navigator.pushNamed(context, '/menu');
+    Navigator.pushNamed(context, '/get_user_phonenumber');
   }
 
   @override
@@ -65,9 +68,9 @@ class _WelcomePageState extends State<WelcomePage>
                       mainAxisSize: MainAxisSize.min,
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Image.asset(_logos[1], width: 300, height: 300),
+                        Image.asset(_logos[1], width: 200, height: 200),
                         const SizedBox(width: 24),
-                        Image.asset(_logos[0], width: 200, height: 200),
+                        Image.asset(_logos[0], width: 300, height: 300),
                       ],
                     ),
                     const SizedBox(height: 24),

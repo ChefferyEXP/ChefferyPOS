@@ -20,10 +20,14 @@ import 'package:v0_0_0_cheffery_pos/core/themes/designs.dart';
 import 'package:v0_0_0_cheffery_pos/auth/login.dart';
 import 'package:v0_0_0_cheffery_pos/auth/auth_router.dart';
 import 'package:v0_0_0_cheffery_pos/public_front_end/menu/menu.dart';
+import 'package:v0_0_0_cheffery_pos/public_front_end/welcome/pos_welcome.dart';
 import 'package:v0_0_0_cheffery_pos/store_front_end/live/go_live_public.dart';
-import 'package:v0_0_0_cheffery_pos/store_front_end/profile/profile.dart';
+import 'package:v0_0_0_cheffery_pos/store_front_end/profile/store_profile.dart';
 import 'package:v0_0_0_cheffery_pos/store_front_end/setup/store_setup.dart';
 import 'package:v0_0_0_cheffery_pos/admin/admin_home.dart';
+
+import 'package:v0_0_0_cheffery_pos/public_front_end/welcome/get_user_firstname.dart';
+import 'package:v0_0_0_cheffery_pos/public_front_end/welcome/get_user_phonenumber.dart';
 
 Future<void> main() async {
   //Ensures Flutter engine/bindings are ready before doing async work
@@ -75,13 +79,21 @@ class ChefferyPOS extends StatelessWidget {
         // Home page
         '/home': (context) => const AuthRouter(),
         // Profile Page
-        '/profile': (context) => const ProfilePage(),
+        '/storeprofile': (context) => const StoreProfilePage(),
+
+        '/welcome': (context) => const WelcomePage(),
 
         // Admin
         '/admin': (context) => const AdminHomePage(),
 
         // Store onboarding
         '/store-setup': (context) => const StoreSetupPage(),
+
+        //Gets User phone number pos side
+        '/get_user_phonenumber': (_) => const GetUserPhoneNumberPage(),
+
+        //Gets user first name pos side
+        '/get_user_firstname': (_) => const GetUserFirstNamePage(),
       },
     );
   }

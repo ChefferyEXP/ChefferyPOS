@@ -5,7 +5,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../core/providers/supabase_provider.dart';
+import '../core/global_providers/supabase_provider.dart';
 
 // UI state model for loading + error + info message for the login screen.
 class AuthUiState {

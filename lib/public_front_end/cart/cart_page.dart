@@ -1,6 +1,7 @@
-// ===========================
-// cart_page.dart
-// ===========================
+// Cheffery - cart_page.dart
+//
+// Empty cart page at this point. But this will be the final order review before payment
+
 import 'package:flutter/material.dart';
 
 class CartPage extends StatelessWidget {
