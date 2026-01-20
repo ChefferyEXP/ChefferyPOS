@@ -10,6 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:v0_0_0_cheffery_pos/store_front_end/live/go_live_public.dart';
 import 'package:v0_0_0_cheffery_pos/store_front_end/profile/store_profile.dart';
 import 'package:v0_0_0_cheffery_pos/store_front_end/store_providers/store_info_provider.dart';
+import 'package:v0_0_0_cheffery_pos/store_front_end/menu_management/menu_management_page.dart';
 
 class StoreHomePage extends ConsumerWidget {
   const StoreHomePage({super.key});
@@ -265,7 +266,13 @@ class StoreHomePage extends ConsumerWidget {
                               icon: Icons.restaurant_menu,
                               title: 'My Menu',
                               subtitle: 'Items & pricing',
-                              onTap: () {},
+                              onTap: () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => const MenuManagementPage(),
+                                  ),
+                                );
+                              },
                             ),
                           ),
                         ],
