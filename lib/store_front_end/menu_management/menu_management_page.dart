@@ -412,6 +412,172 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
     super.dispose();
   }
 
+  void _showCreateCategoryDialog() {
+    final categoryNameController = TextEditingController();
+    String? dialogError;
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: const Color(0xFF2A2F37),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          title: const Text(
+            'Create New Category',
+            style: TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (dialogError != null) ...[
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    dialogError!,
+                    style: const TextStyle(color: Colors.red, fontSize: 13),
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
+              TextField(
+                controller: categoryNameController,
+                autofocus: true,
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  hintText: 'Category name (e.g., Shakes, Smoothies)',
+                  hintStyle: const TextStyle(color: Colors.white38),
+                  filled: true,
+                  fillColor: const Color(0xFF1F2329),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(
+                      color: Colors.white.withValues(alpha: 0.1),
+                    ),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(
+                      color: Colors.white.withValues(alpha: 0.1),
+                    ),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(
+                      color: AppColors.accent,
+                      width: 2,
+                    ),
+                  ),
+                ),
+                onSubmitted: (_) async {
+                  final name = categoryNameController.text.trim();
+                  if (name.isEmpty) {
+                    setDialogState(() {
+                      dialogError = 'Category name cannot be empty';
+                    });
+                    return;
+                  }
+
+                  try {
+                    final newId =
+                        await widget.dataSource.createCategory(name);
+                    if (!mounted) return;
+
+                    // Refresh categories list
+                    final updatedCategories =
+                        await widget.dataSource.fetchCategories();
+
+                    setState(() {
+                      widget.allCategories.clear();
+                      widget.allCategories.addAll(updatedCategories);
+                      _selectedCategoryId = newId;
+                    });
+
+                    Navigator.pop(dialogContext);
+
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Category "$name" created successfully'),
+                      ),
+                    );
+                  } catch (e) {
+                    setDialogState(() {
+                      dialogError = 'Failed to create category: $e';
+                    });
+                  }
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text(
+                'Cancel',
+                style: TextStyle(color: Colors.white70),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final name = categoryNameController.text.trim();
+                if (name.isEmpty) {
+                  setDialogState(() {
+                    dialogError = 'Category name cannot be empty';
+                  });
+                  return;
+                }
+
+                try {
+                  final newId = await widget.dataSource.createCategory(name);
+                  if (!mounted) return;
+
+                  // Refresh categories list
+                  final updatedCategories =
+                      await widget.dataSource.fetchCategories();
+
+                  setState(() {
+                    widget.allCategories.clear();
+                    widget.allCategories.addAll(updatedCategories);
+                    _selectedCategoryId = newId;
+                  });
+
+                  Navigator.pop(dialogContext);
+
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Category "$name" created successfully'),
+                    ),
+                  );
+                } catch (e) {
+                  setDialogState(() {
+                    dialogError = 'Failed to create category: $e';
+                  });
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.accent,
+                foregroundColor: Colors.black87,
+              ),
+              child: const Text(
+                'Create',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     if (_selectedCategoryId == null) {
@@ -557,12 +723,29 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
                         ),
                         const SizedBox(height: 16),
                       ],
-                      const Text(
-                        'Category',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w600,
-                        ),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Category',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          TextButton.icon(
+                            onPressed: _showCreateCategoryDialog,
+                            icon: const Icon(Icons.add, size: 16),
+                            label: const Text('Create Category'),
+                            style: TextButton.styleFrom(
+                              foregroundColor: AppColors.accent,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 8),
                       DropdownButtonFormField<int>(
