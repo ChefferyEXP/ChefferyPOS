@@ -24,6 +24,7 @@ class _MenuManagementPageState extends ConsumerState<MenuManagementPage> {
   String? _error;
   Map<String, List<Map<String, dynamic>>> _productsByCategory = {};
   List<Map<String, dynamic>> _allCategories = [];
+  List<Map<String, dynamic>> _menuCategories = [];
 
   @override
   void initState() {
@@ -42,12 +43,14 @@ class _MenuManagementPageState extends ConsumerState<MenuManagementPage> {
     try {
       final products = await _dataSource.fetchProductsByCategory();
       final categories = await _dataSource.fetchCategories();
+      final menuCategories = await _dataSource.fetchMenuCategories();
 
       if (!mounted) return;
 
       setState(() {
         _productsByCategory = products;
         _allCategories = categories;
+        _menuCategories = menuCategories;
         _isLoading = false;
       });
     } catch (e) {
@@ -104,6 +107,103 @@ class _MenuManagementPageState extends ConsumerState<MenuManagementPage> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Failed to delete product: $e')),
+      );
+    }
+  }
+
+  Future<void> _deleteCategory(
+    String categoryName,
+    List<Map<String, dynamic>> products,
+  ) async {
+    // Check if products exist in this category
+    if (products.isNotEmpty) {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          backgroundColor: const Color(0xFF2A2F37),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          title: const Text(
+            'Cannot Delete Category',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+          ),
+          content: Text(
+            'The category "$categoryName" still has ${products.length} product(s). Please remove or reassign all products before deleting this category.',
+            style: const TextStyle(color: Colors.white70),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text(
+                'OK',
+                style: TextStyle(color: AppColors.accent),
+              ),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    // Confirm deletion
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF2A2F37),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        title: const Text(
+          'Delete Category',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+        ),
+        content: Text(
+          'Are you sure you want to delete the category "$categoryName"?',
+          style: const TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: Colors.white70),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    try {
+      // Find the category ID from _allCategories
+      final category = _allCategories.firstWhere(
+        (cat) => cat['category_name'] == categoryName,
+        orElse: () => <String, dynamic>{},
+      );
+
+      final categoryId = category['id'] as int?;
+      if (categoryId == null) {
+        throw Exception('Category not found');
+      }
+
+      await _dataSource.deleteCategory(categoryId);
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Category "$categoryName" deleted successfully')),
+      );
+      _loadData();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to delete category: $e')),
       );
     }
   }
@@ -168,7 +268,7 @@ class _MenuManagementPageState extends ConsumerState<MenuManagementPage> {
                     ),
                   ),
                 )
-              : _productsByCategory.isEmpty
+              : _menuCategories.isEmpty
                   ? Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -180,7 +280,7 @@ class _MenuManagementPageState extends ConsumerState<MenuManagementPage> {
                           ),
                           SizedBox(height: 16),
                           Text(
-                            'No menu items yet',
+                            'No categories yet',
                             style: TextStyle(
                               color: Colors.white,
                               fontSize: 18,
@@ -189,7 +289,7 @@ class _MenuManagementPageState extends ConsumerState<MenuManagementPage> {
                           ),
                           SizedBox(height: 8),
                           Text(
-                            'Tap the + button to add your first item',
+                            'Create a category to get started',
                             style: TextStyle(
                               color: Colors.white70,
                               fontSize: 14,
@@ -200,37 +300,71 @@ class _MenuManagementPageState extends ConsumerState<MenuManagementPage> {
                     )
                   : ListView(
                       padding: const EdgeInsets.all(16),
-                      children: _productsByCategory.entries.map((entry) {
-                        final categoryName = entry.key;
-                        final products = entry.value;
+                      children: _menuCategories.map((category) {
+                        final categoryName = category['category_name'] as String;
+                        final products = _productsByCategory[categoryName] ?? [];
 
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Padding(
                               padding: const EdgeInsets.fromLTRB(8, 16, 8, 12),
-                              child: Text(
-                                categoryName,
-                                style: const TextStyle(
-                                  color: AppColors.accent,
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.w900,
-                                  letterSpacing: 0.5,
-                                ),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      categoryName,
+                                      style: const TextStyle(
+                                        color: AppColors.accent,
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.w900,
+                                        letterSpacing: 0.5,
+                                      ),
+                                    ),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(
+                                      Icons.delete_outline,
+                                      color: Colors.white60,
+                                      size: 20,
+                                    ),
+                                    onPressed: () => _deleteCategory(
+                                      categoryName,
+                                      products,
+                                    ),
+                                    tooltip: 'Delete category',
+                                  ),
+                                ],
                               ),
                             ),
-                            ...products.map((product) {
-                              return _ProductCard(
-                                product: product,
-                                onEdit: () => _showProductDialog(
+                            if (products.isEmpty)
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 16,
+                                ),
+                                child: Text(
+                                  'No products in this category',
+                                  style: TextStyle(
+                                    color: Colors.white.withValues(alpha: 0.4),
+                                    fontSize: 14,
+                                    fontStyle: FontStyle.italic,
+                                  ),
+                                ),
+                              )
+                            else
+                              ...products.map((product) {
+                                return _ProductCard(
                                   product: product,
-                                ),
-                                onDelete: () => _deleteProduct(
-                                  product['product_id'] as int,
-                                  product['name'] as String,
-                                ),
-                              );
-                            }),
+                                  onEdit: () => _showProductDialog(
+                                    product: product,
+                                  ),
+                                  onDelete: () => _deleteProduct(
+                                    product['product_id'] as int,
+                                    product['name'] as String,
+                                  ),
+                                );
+                              }),
                             const SizedBox(height: 8),
                           ],
                         );

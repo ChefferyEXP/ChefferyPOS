@@ -297,4 +297,21 @@ class MenuManagementDataSource {
 
     return result['id'] as int;
   }
+
+  // =========================================================
+  // Delete category
+  // =========================================================
+  Future<void> deleteCategory(int categoryId) async {
+    // First, delete any junction entries linking menus to this category
+    await supabase
+        .from('store_menu_categories_junction')
+        .delete()
+        .eq('id_product_category', categoryId);
+
+    // Then delete the category itself
+    await supabase
+        .from('product_category')
+        .delete()
+        .eq('id', categoryId);
+  }
 }
