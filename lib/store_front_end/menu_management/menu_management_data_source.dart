@@ -3,6 +3,7 @@
 // Data source for managing menu items (CRUD operations)
 // Handles database operations for creating, updating, and deleting menu products
 
+import 'dart:typed_data';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class MenuManagementDataSource {
@@ -254,6 +255,28 @@ class MenuManagementDataSource {
 
     final menuId = menuInfo['menuId'] as int;
 
+    // Fetch old product data to get the old image URI
+    final oldProduct = await supabase
+        .from('store_menu_products')
+        .select('image_uri')
+        .eq('product_id', productId)
+        .maybeSingle();
+
+    final oldImageUri = oldProduct?['image_uri'] as String?;
+
+    // Delete old image from storage if:
+    // 1. Old image exists AND is being replaced with a new image
+    // 2. Old image exists AND is being removed (imageUri is null)
+    if (oldImageUri != null && oldImageUri.isNotEmpty) {
+      if (imageUri != oldImageUri) {
+        try {
+          await supabase.storage.from('menu-images').remove([oldImageUri]);
+        } catch (e) {
+          // Continue even if delete fails (image might not exist)
+        }
+      }
+    }
+
     final junctionId = await getOrCreateJunction(menuId, categoryId);
     if (junctionId == null) throw Exception('Failed to get/create junction');
 
@@ -279,10 +302,75 @@ class MenuManagementDataSource {
   // Delete product
   // =========================================================
   Future<void> deleteProduct(int productId) async {
+    // Fetch product data to get the image URI
+    final product = await supabase
+        .from('store_menu_products')
+        .select('image_uri')
+        .eq('product_id', productId)
+        .maybeSingle();
+
+    final imageUri = product?['image_uri'] as String?;
+
+    // Delete the product from database
     await supabase
         .from('store_menu_products')
         .delete()
         .eq('product_id', productId);
+
+    // Delete image from storage if it exists
+    if (imageUri != null && imageUri.isNotEmpty) {
+      try {
+        await supabase.storage.from('menu-images').remove([imageUri]);
+      } catch (e) {
+        // Continue even if delete fails (image might not exist)
+      }
+    }
+  }
+
+  // =========================================================
+  // Upload image to Supabase Storage
+  // =========================================================
+  Future<String> uploadImageFromBytes(
+    List<int> bytes,
+    String fileName,
+  ) async {
+    // Generate a unique filename with timestamp to avoid collisions
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final extension = fileName.split('.').last;
+    final uniqueFileName = '${timestamp}_$fileName';
+
+    // Convert List<int> to Uint8List
+    final uint8bytes = Uint8List.fromList(bytes);
+
+    // Upload to Supabase Storage
+    await supabase.storage.from('menu-images').uploadBinary(
+          uniqueFileName,
+          uint8bytes,
+          fileOptions: FileOptions(
+            contentType: _getContentType(extension),
+            upsert: false,
+          ),
+        );
+
+    // Return the path (without bucket prefix)
+    return uniqueFileName;
+  }
+
+  // Helper to determine content type based on file extension
+  String _getContentType(String extension) {
+    switch (extension.toLowerCase()) {
+      case 'jpg':
+      case 'jpeg':
+        return 'image/jpeg';
+      case 'png':
+        return 'image/png';
+      case 'gif':
+        return 'image/gif';
+      case 'webp':
+        return 'image/webp';
+      default:
+        return 'image/jpeg';
+    }
   }
 
   // =========================================================

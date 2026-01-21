@@ -3,8 +3,11 @@
 // Menu management interface for store owners
 // Allows adding, editing, and deleting menu items
 
+import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 
 import 'package:v0_0_0_cheffery_pos/core/global_providers/supabase_provider.dart';
 import 'package:v0_0_0_cheffery_pos/core/themes/designs.dart';
@@ -505,6 +508,8 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
   int? _selectedCategoryId;
   bool _isSaving = false;
   String? _error;
+  XFile? _selectedImage;
+  final ImagePicker _picker = ImagePicker();
 
   @override
   void initState() {
@@ -739,6 +744,20 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
           ? null
           : int.parse(_fatController.text.trim());
 
+      // Upload image if a new one was selected
+      String? imageUri;
+      if (_selectedImage != null) {
+        final fileName = _selectedImage!.name;
+        final bytes = await _selectedImage!.readAsBytes();
+        imageUri = await widget.dataSource.uploadImageFromBytes(
+          bytes,
+          fileName,
+        );
+      } else if (_imageUriController.text.trim().isNotEmpty) {
+        // Keep existing image path if no new image was selected
+        imageUri = _imageUriController.text.trim();
+      }
+
       if (widget.product == null) {
         await widget.dataSource.createProduct(
           categoryId: _selectedCategoryId!,
@@ -750,9 +769,7 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
           protein: protein,
           carbs: carbs,
           fat: fat,
-          imageUri: _imageUriController.text.trim().isEmpty
-              ? null
-              : _imageUriController.text.trim(),
+          imageUri: imageUri,
           highlightedFeature:
               _highlightedFeatureController.text.trim().isEmpty
                   ? null
@@ -770,9 +787,7 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
           protein: protein,
           carbs: carbs,
           fat: fat,
-          imageUri: _imageUriController.text.trim().isEmpty
-              ? null
-              : _imageUriController.text.trim(),
+          imageUri: imageUri,
           highlightedFeature:
               _highlightedFeatureController.text.trim().isEmpty
                   ? null
@@ -973,10 +988,7 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
                         _highlightedFeatureController,
                       ),
                       const SizedBox(height: 16),
-                      _buildTextField(
-                        'Image Path (e.g., acai-bowl.jpg)',
-                        _imageUriController,
-                      ),
+                      _buildImagePicker(),
                     ],
                   ),
                 ),
@@ -1027,6 +1039,135 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
           ],
         ),
       ),
+    );
+  }
+
+  Future<void> _pickImage() async {
+    try {
+      final XFile? image = await _picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1920,
+        maxHeight: 1080,
+        imageQuality: 85,
+      );
+
+      if (image != null) {
+        setState(() {
+          _selectedImage = image;
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to pick image: $e')),
+      );
+    }
+  }
+
+  Widget _buildImagePicker() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'Product Image',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            if (_selectedImage != null || _imageUriController.text.isNotEmpty)
+              TextButton.icon(
+                onPressed: () {
+                  setState(() {
+                    _selectedImage = null;
+                    _imageUriController.clear();
+                  });
+                },
+                icon: const Icon(Icons.close, size: 16),
+                label: const Text('Remove'),
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.red,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        if (_selectedImage != null)
+          Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: AppColors.accent.withValues(alpha: 0.3),
+              ),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: kIsWeb
+                  ? Image.network(
+                      _selectedImage!.path,
+                      height: 150,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                    )
+                  : Image.file(
+                      File(_selectedImage!.path),
+                      height: 150,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                    ),
+            ),
+          )
+        else if (_imageUriController.text.isNotEmpty)
+          Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.2),
+              ),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.image, color: Colors.white54, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    _imageUriController.text,
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 13,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        OutlinedButton.icon(
+          onPressed: _pickImage,
+          icon: const Icon(Icons.upload),
+          label: Text(
+            _selectedImage != null || _imageUriController.text.isNotEmpty
+                ? 'Change Image'
+                : 'Upload Image',
+          ),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: AppColors.accent,
+            side: const BorderSide(color: AppColors.accent),
+            minimumSize: const Size(double.infinity, 48),
+          ),
+        ),
+      ],
     );
   }
 
