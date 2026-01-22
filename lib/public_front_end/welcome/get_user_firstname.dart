@@ -10,6 +10,8 @@ import 'package:v0_0_0_cheffery_pos/core/global_providers/supabase_provider.dart
 import 'package:v0_0_0_cheffery_pos/core/global_widgets/confirm_dialog_widget.dart';
 import 'package:v0_0_0_cheffery_pos/core/themes/designs.dart';
 
+import 'package:v0_0_0_cheffery_pos/core/global_providers/pos_user_provider.dart';
+
 class GetUserFirstNamePage extends ConsumerStatefulWidget {
   const GetUserFirstNamePage({super.key});
 

@@ -12,6 +12,7 @@ import 'package:v0_0_0_cheffery_pos/core/global_providers/supabase_provider.dart
 import 'package:v0_0_0_cheffery_pos/core/global_providers/store_phone_provider.dart';
 import 'package:v0_0_0_cheffery_pos/auth/auth_router.dart';
 import 'package:v0_0_0_cheffery_pos/core/themes/designs.dart';
+import 'package:v0_0_0_cheffery_pos/core/global_providers/pos_user_provider.dart';
 
 class GetUserPhoneNumberPage extends ConsumerStatefulWidget {
   const GetUserPhoneNumberPage({super.key});

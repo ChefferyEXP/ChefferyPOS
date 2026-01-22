@@ -140,6 +140,17 @@ class _ProductVariationsPageState extends ConsumerState<ProductVariationsPage> {
         final priceAdjNum = vm['price_adjustment'];
         final priceDelta = (priceAdjNum is num) ? priceAdjNum.toDouble() : 0.0;
 
+        // Nutrition (present in your DB payload)
+        final calNum = vm['calories'];
+        final proteinNum = vm['protein'];
+        final carbsNum = vm['carbs'];
+        final fatNum = vm['fat'];
+
+        final calories = (calNum is num) ? calNum.toDouble() : 0.0;
+        final protein = (proteinNum is num) ? proteinNum.toDouble() : 0.0;
+        final carbs = (carbsNum is num) ? carbsNum.toDouble() : 0.0;
+        final fat = (fatNum is num) ? fatNum.toDouble() : 0.0;
+
         final isDefault = (ar['is_default'] as bool?) ?? false;
         final defaultQty = (ar['default_quantity'] as int?) ?? 1;
 
@@ -155,6 +166,10 @@ class _ProductVariationsPageState extends ConsumerState<ProductVariationsPage> {
                 priceDelta: priceDelta,
                 isDefault: isDefault,
                 quantity: qty,
+                calories: calories,
+                protein: protein,
+                carbs: carbs,
+                fat: fat,
               ),
             );
       }
@@ -165,7 +180,7 @@ class _ProductVariationsPageState extends ConsumerState<ProductVariationsPage> {
       final typeIds = groupMetaByTypeId.keys.toList()..sort();
       for (final typeId in typeIds) {
         final meta = groupMetaByTypeId[typeId]!;
-        final opts = optionsByTypeId[typeId] ?? const [];
+        final opts = optionsByTypeId[typeId] ?? <_VariationOptionVM>[];
 
         // Enforce single-select default sanity: if max==1, keep only first default
         if (meta.max == 1) {
@@ -234,24 +249,77 @@ class _ProductVariationsPageState extends ConsumerState<ProductVariationsPage> {
     setState(() {});
   }
 
-  double _addonsPrice() {
-    double sum = 0;
-    for (final g in _groups) {
-      for (final o in g.options) {
-        if (o.quantity > 0) {
-          sum += (o.priceDelta * o.quantity);
-        }
-      }
-    }
-    return sum;
-  }
-
   double _basePrice() {
     final row = _productRow;
     if (row == null) return 0;
     final v = row['base_price'];
     if (v is num) return v.toDouble();
     return 0;
+  }
+
+  double _num(dynamic v) => (v is num) ? v.toDouble() : 0.0;
+
+  // ---- Totals (base + selected variations) ----
+  _Totals _computeTotals() {
+    final row = _productRow;
+
+    final basePrice = _basePrice();
+    final baseCal = _num(row?['calories']);
+    final baseProtein = _num(row?['protein']);
+    final baseCarbs = _num(row?['carbs']);
+    final baseFat = _num(row?['fat']);
+
+    double addonsPrice = 0;
+    double addonsCal = 0;
+    double addonsProtein = 0;
+    double addonsCarbs = 0;
+    double addonsFat = 0;
+
+    final selected = <_SelectedOpt>[];
+
+    for (final g in _groups) {
+      for (final o in g.options) {
+        if (o.quantity > 0) {
+          final q = o.quantity;
+          addonsPrice += (o.priceDelta * q);
+          addonsCal += (o.calories * q);
+          addonsProtein += (o.protein * q);
+          addonsCarbs += (o.carbs * q);
+          addonsFat += (o.fat * q);
+
+          selected.add(
+            _SelectedOpt(
+              name: o.name,
+              qty: q,
+              priceDelta: o.priceDelta,
+              calories: o.calories,
+              protein: o.protein,
+              carbs: o.carbs,
+              fat: o.fat,
+            ),
+          );
+        }
+      }
+    }
+
+    return _Totals(
+      basePrice: basePrice,
+      addonsPrice: addonsPrice,
+      finalPrice: basePrice + addonsPrice,
+      baseCalories: baseCal,
+      baseProtein: baseProtein,
+      baseCarbs: baseCarbs,
+      baseFat: baseFat,
+      addonsCalories: addonsCal,
+      addonsProtein: addonsProtein,
+      addonsCarbs: addonsCarbs,
+      addonsFat: addonsFat,
+      finalCalories: baseCal + addonsCal,
+      finalProtein: baseProtein + addonsProtein,
+      finalCarbs: baseCarbs + addonsCarbs,
+      finalFat: baseFat + addonsFat,
+      selected: selected,
+    );
   }
 
   String _money(double v) => '\$${v.toStringAsFixed(2)}';
@@ -261,18 +329,11 @@ class _ProductVariationsPageState extends ConsumerState<ProductVariationsPage> {
     final menuItem = widget.item;
     final row = _productRow;
 
-    final base = _basePrice();
-    final addons = _addonsPrice();
-    final total = base + addons;
-
     final title = (row?['name'] ?? menuItem.name).toString();
     final subtitle = (row?['subtitle'] ?? menuItem.subtitle).toString();
     final description = (row?['description'] ?? '').toString();
 
-    final calories = row?['calories'];
-    final protein = row?['protein'];
-    final carbs = row?['carbs'];
-    final fat = row?['fat'];
+    final totals = _computeTotals();
 
     return Scaffold(
       body: Container(
@@ -284,186 +345,211 @@ class _ProductVariationsPageState extends ConsumerState<ProductVariationsPage> {
           ),
         ),
         child: SafeArea(
-          child: Column(
+          child: Stack(
             children: [
-              // ===== Top bar =====
-              Padding(
-                padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-                child: Row(
-                  children: [
-                    InkWell(
-                      onTap: () => Navigator.of(context).pop(),
-                      borderRadius: BorderRadius.circular(24),
-                      child: const Padding(
-                        padding: EdgeInsets.all(8),
-                        child: Icon(
-                          Icons.arrow_back,
-                          color: Colors.black87,
-                          size: 24,
-                        ),
+              // ========= Scroll area with PINNED product card =========
+              CustomScrollView(
+                physics: const BouncingScrollPhysics(),
+                slivers: [
+                  // Top bar
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                      child: Row(
+                        children: [
+                          InkWell(
+                            onTap: () => Navigator.of(context).pop(),
+                            borderRadius: BorderRadius.circular(24),
+                            child: const Padding(
+                              padding: EdgeInsets.all(8),
+                              child: Icon(
+                                Icons.arrow_back,
+                                color: Colors.black87,
+                                size: 24,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w900,
+                                color: Colors.black87,
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: _loadAll,
+                            icon: const Icon(Icons.refresh),
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w900,
-                          color: Colors.black87,
-                        ),
-                      ),
-                    ),
-                    IconButton(
-                      onPressed: _loadAll,
-                      icon: const Icon(Icons.refresh),
-                    ),
-                  ],
-                ),
-              ),
+                  ),
 
-              const SizedBox(height: 8),
+                  const SliverToBoxAdapter(child: SizedBox(height: 8)),
 
-              // ===== Content =====
-              Expanded(
-                child: SingleChildScrollView(
-                  physics: const BouncingScrollPhysics(),
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _CompactProductCard(
+                  // PINNED product box (stays during scroll)
+                  SliverAppBar(
+                    pinned: true,
+                    floating: false,
+                    snap: false,
+                    elevation: 0,
+                    backgroundColor: Colors.transparent,
+                    automaticallyImplyLeading: false,
+                    toolbarHeight: 0,
+                    collapsedHeight: 150,
+                    expandedHeight: 150,
+                    flexibleSpace: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                      child: _PinnedProductCard(
                         item: menuItem,
                         title: title,
                         subtitle: subtitle,
                         description: description,
-                        basePrice: base,
-                        calories: calories,
-                        protein: protein,
-                        carbs: carbs,
-                        fat: fat,
+                        totals: totals,
                       ),
-                      const SizedBox(height: 12),
-
-                      if (_loading)
-                        const Padding(
-                          padding: EdgeInsets.only(top: 28),
-                          child: Center(child: CircularProgressIndicator()),
-                        )
-                      else if (_error != null)
-                        Container(
-                          padding: const EdgeInsets.all(14),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.95),
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Text(
-                            'Failed to load variations.\n$_error',
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w800,
-                              color: Colors.black87,
-                            ),
-                          ),
-                        )
-                      else if (_groups.isEmpty)
-                        Container(
-                          padding: const EdgeInsets.all(14),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.95),
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: const Text(
-                            'No variations for this product.',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontWeight: FontWeight.w800,
-                              color: Colors.black87,
-                            ),
-                          ),
-                        )
-                      else
-                        ..._groups.map(
-                          (g) => _VariationGroupCard(
-                            group: g,
-                            onToggle: (opt) => _toggleSingleSelect(g, opt),
-                            onInc: (opt) => _inc(g, opt),
-                            onDec: (opt) => _dec(opt),
-                          ),
-                        ),
-                    ],
+                    ),
                   ),
-                ),
+
+                  // Content
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 10, 16, 140),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          if (_loading)
+                            const Padding(
+                              padding: EdgeInsets.only(top: 28),
+                              child: Center(child: CircularProgressIndicator()),
+                            )
+                          else if (_error != null)
+                            Container(
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.95),
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: Text(
+                                'Failed to load variations.\n$_error',
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                            )
+                          else if (_groups.isEmpty)
+                            Container(
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.95),
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: const Text(
+                                'No variations for this product.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                            )
+                          else
+                            ..._groups.map(
+                              (g) => _VariationGroupCard(
+                                group: g,
+                                onToggle: (opt) => _toggleSingleSelect(g, opt),
+                                onInc: (opt) => _inc(g, opt),
+                                onDec: (opt) => _dec(opt),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ),
 
-              // ===== Bottom price bar =====
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
-                child: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.95),
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.12),
-                        blurRadius: 12,
-                        offset: const Offset(0, -4),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _PriceLine(label: 'Base', value: _money(base)),
-                            const SizedBox(height: 4),
-                            _PriceLine(
-                              label: 'Add-ons',
-                              value: addons == 0
-                                  ? _money(0)
-                                  : '+ ${_money(addons)}',
-                            ),
-                            const SizedBox(height: 8),
-                            _PriceLine(
-                              label: 'Final',
-                              value: _money(total),
-                              bold: true,
-                            ),
-                          ],
+              // ========= Bottom price bar (fixed) =========
+              Align(
+                alignment: Alignment.bottomCenter,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.95),
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.12),
+                          blurRadius: 12,
+                          offset: const Offset(0, -4),
                         ),
-                      ),
-                      const SizedBox(width: 10),
-                      SizedBox(
-                        height: 46,
-                        child: ElevatedButton(
-                          onPressed: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Add to cart coming next.'),
+                      ],
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _PriceLine(
+                                label: 'Base',
+                                value: _money(totals.basePrice),
                               ),
-                            );
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.black,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
+                              const SizedBox(height: 4),
+                              _PriceLine(
+                                label: 'Add-ons',
+                                value: totals.addonsPrice == 0
+                                    ? _money(0)
+                                    : '+ ${_money(totals.addonsPrice)}',
+                              ),
+                              const SizedBox(height: 8),
+                              _PriceLine(
+                                label: 'Final',
+                                value: _money(totals.finalPrice),
+                                bold: true,
+                              ),
+                            ],
                           ),
-                          child: const Text(
-                            'Add to Cart',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w900,
+                        ),
+                        const SizedBox(width: 10),
+                        SizedBox(
+                          height: 46,
+                          child: ElevatedButton(
+                            onPressed: () {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Add to cart coming next.'),
+                                ),
+                              );
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.black,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: const Text(
+                              'Add to Cart',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w900,
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -479,31 +565,27 @@ class _ProductVariationsPageState extends ConsumerState<ProductVariationsPage> {
 // UI widgets
 // =========================================================
 
-// Top of page product cart with image and meta data
-class _CompactProductCard extends StatelessWidget {
-  const _CompactProductCard({
+class _PinnedProductCard extends StatelessWidget {
+  const _PinnedProductCard({
     required this.item,
     required this.title,
     required this.subtitle,
     required this.description,
-    required this.basePrice,
-    required this.calories,
-    required this.protein,
-    required this.carbs,
-    required this.fat,
+    required this.totals,
   });
 
   final MenuCardItem item;
   final String title;
   final String subtitle;
   final String description;
-  final double basePrice;
-  final dynamic calories;
-  final dynamic protein;
-  final dynamic carbs;
-  final dynamic fat;
+  final _Totals totals;
 
   String _money(double v) => '\$${v.toStringAsFixed(2)}';
+
+  String _fmtMacro(double v, {String suffix = ''}) {
+    if (v.abs() < 0.00001) return '0$suffix';
+    return '${v.round()}$suffix';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -540,7 +622,7 @@ class _CompactProductCard extends StatelessWidget {
                     image: NetworkImage(url),
                     fit: BoxFit.contain,
                     errorBuilder: (_, __, ___) => Image.asset(
-                      'assets/logos/freshBlendzLogo.png', // Use freshblendz logo as fall back if failure on load.
+                      'assets/logos/freshBlendzLogo.png',
                       fit: BoxFit.contain,
                     ),
                   )
@@ -552,14 +634,13 @@ class _CompactProductCard extends StatelessWidget {
 
           const SizedBox(width: 12),
 
-          // Text / specs
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   title.toUpperCase(),
-                  maxLines: 2,
+                  maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     fontSize: 16,
@@ -568,7 +649,7 @@ class _CompactProductCard extends StatelessWidget {
                     letterSpacing: 0.4,
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 2),
                 Text(
                   subtitle.toUpperCase(),
                   maxLines: 1,
@@ -580,24 +661,45 @@ class _CompactProductCard extends StatelessWidget {
                     letterSpacing: 0.6,
                   ),
                 ),
+
                 const SizedBox(height: 8),
 
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
+                // Horizontal row for macros and addons
+                _HorizontalPills(
                   children: [
-                    _ChipPill(text: 'Base ${_money(basePrice)}'),
-                    if (calories != null) _ChipPill(text: '${calories} cal'),
-                    if (protein != null) _ChipPill(text: '${protein}g protein'),
-                    if (carbs != null) _ChipPill(text: '${carbs}g carbs'),
-                    if (fat != null) _ChipPill(text: '${fat}g fat'),
+                    _ChipPill(text: 'Price ${_money(totals.finalPrice)}'),
+                    _ChipPill(
+                      text: 'Calories ${_fmtMacro(totals.finalCalories)}',
+                    ),
+                    _ChipPill(
+                      text:
+                          'Protein ${_fmtMacro(totals.finalProtein, suffix: "g")}',
+                    ),
+                    _ChipPill(
+                      text:
+                          'Carbs ${_fmtMacro(totals.finalCarbs, suffix: "g")}',
+                    ),
+                    _ChipPill(
+                      text: 'Fat ${_fmtMacro(totals.finalFat, suffix: "g")}',
+                    ),
+
+                    if (totals.selected.isNotEmpty) ...[
+                      const _PillDivider(),
+                      ...totals.selected.map((s) {
+                        final qtyPart = s.qty > 1 ? ' x${s.qty}' : '';
+                        return _ChipPill(text: '${s.name}$qtyPart');
+                      }),
+                    ],
                   ],
                 ),
 
+                // Always show ingredients/description
                 if (description.trim().isNotEmpty) ...[
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 8),
                   Text(
                     description,
+                    maxLines: 2, // keep pinned card height stable
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       color: Colors.black87,
                       fontWeight: FontWeight.w600,
@@ -614,7 +716,31 @@ class _CompactProductCard extends StatelessWidget {
   }
 }
 
-// Chip pill for the meta data
+class _HorizontalPills extends StatelessWidget {
+  const _HorizontalPills({required this.children});
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 34,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        child: Row(
+          children: [
+            for (int i = 0; i < children.length; i++) ...[
+              if (i > 0) const SizedBox(width: 8),
+              children[i],
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// Chip pill for meta data
 class _ChipPill extends StatelessWidget {
   const _ChipPill({required this.text});
   final String text;
@@ -632,6 +758,7 @@ class _ChipPill extends StatelessWidget {
         style: const TextStyle(
           fontWeight: FontWeight.w800,
           color: Colors.black87,
+          fontSize: 12,
         ),
       ),
     );
@@ -715,7 +842,6 @@ class _VariationGroupCard extends StatelessWidget {
             const SizedBox(height: 10),
             ...group.options.map((opt) {
               final selected = opt.quantity > 0;
-              final delta = opt.priceDelta;
 
               return Container(
                 margin: const EdgeInsets.only(bottom: 8),
@@ -731,40 +857,87 @@ class _VariationGroupCard extends StatelessWidget {
                     width: 1.4,
                   ),
                 ),
-                child: ListTile(
-                  dense: true,
+                child: InkWell(
                   onTap: () => onToggle(opt),
-                  title: Text(
-                    opt.name,
-                    style: const TextStyle(fontWeight: FontWeight.w900),
-                  ),
-                  subtitle:
-                      (delta != 0 ||
-                          (opt.description?.trim().isNotEmpty ?? false))
-                      ? Text(
-                          [
-                            if (delta != 0)
-                              '${delta >= 0 ? '+' : ''}${delta.toStringAsFixed(2)}',
-                            if (opt.description?.trim().isNotEmpty ?? false)
-                              opt.description!.trim(),
-                          ].join(' • '),
-                          style: const TextStyle(fontWeight: FontWeight.w700),
-                        )
-                      : null,
-                  trailing: group.max == 1
-                      ? Icon(
-                          selected
-                              ? Icons.radio_button_checked
-                              : Icons.radio_button_off,
-                          color: selected
-                              ? const Color(0xFF2E7D32)
-                              : Colors.black45,
-                        )
-                      : _QtyStepper(
-                          qty: opt.quantity,
-                          onDec: () => onDec(opt),
-                          onInc: () => onInc(opt),
+                  borderRadius: BorderRadius.circular(12),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                opt.name,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 15,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+
+                              // Pills for variations macros
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: [
+                                  if (opt.priceDelta != 0)
+                                    _MiniPill(
+                                      text:
+                                          '${opt.priceDelta >= 0 ? '+' : ''}${opt.priceDelta.toStringAsFixed(2)}',
+                                    ),
+                                  if (opt.calories.abs() > 0.00001)
+                                    _MiniPill(
+                                      text: 'Calories ${opt.calories.round()}',
+                                    ),
+                                  if (opt.protein.abs() > 0.00001)
+                                    _MiniPill(
+                                      text: 'Protein ${opt.protein.round()}g',
+                                    ),
+                                  if (opt.carbs.abs() > 0.00001)
+                                    _MiniPill(
+                                      text: 'Carbs ${opt.carbs.round()}g',
+                                    ),
+                                  if (opt.fat.abs() > 0.00001)
+                                    _MiniPill(text: 'Fat ${opt.fat.round()}g'),
+                                ],
+                              ),
+
+                              if (opt.description?.trim().isNotEmpty ??
+                                  false) ...[
+                                const SizedBox(height: 8),
+                                Text(
+                                  opt.description!.trim(),
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.black54,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
                         ),
+                        const SizedBox(width: 8),
+
+                        group.max == 1
+                            ? Icon(
+                                selected
+                                    ? Icons.radio_button_checked
+                                    : Icons.radio_button_off,
+                                color: selected
+                                    ? const Color(0xFF2E7D32)
+                                    : Colors.black45,
+                              )
+                            : _QtyStepper(
+                                qty: opt.quantity,
+                                onDec: () => onDec(opt),
+                                onInc: () => onInc(opt),
+                              ),
+                      ],
+                    ),
+                  ),
                 ),
               );
             }),
@@ -780,6 +953,31 @@ class _VariationGroupCard extends StatelessWidget {
     if (min <= 0) return 'Choose up to $max';
     if (min == max) return 'Choose $min';
     return 'Choose $min-$max';
+  }
+}
+
+class _MiniPill extends StatelessWidget {
+  const _MiniPill({required this.text});
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.9),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: Colors.black.withOpacity(0.08)),
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(
+          fontWeight: FontWeight.w800,
+          color: Colors.black87,
+          fontSize: 12,
+        ),
+      ),
+    );
   }
 }
 
@@ -810,6 +1008,23 @@ class _QtyStepper extends StatelessWidget {
           icon: const Icon(Icons.add_circle_outline),
         ),
       ],
+    );
+  }
+}
+
+class _PillDivider extends StatelessWidget {
+  const _PillDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 2,
+      height: 18,
+      margin: const EdgeInsets.symmetric(horizontal: 4),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(999),
+      ),
     );
   }
 }
@@ -857,13 +1072,88 @@ class _VariationOptionVM {
     required this.priceDelta,
     required this.isDefault,
     required this.quantity,
+    required this.calories,
+    required this.protein,
+    required this.carbs,
+    required this.fat,
     this.description,
   });
 
   final int id;
   final String name;
   final String? description;
+
+  // $ adjustment per 1 quantity
   final double priceDelta;
+
+  // Nutrition per 1 quantity
+  final double calories;
+  final double protein;
+  final double carbs;
+  final double fat;
+
   final bool isDefault;
   int quantity;
+}
+
+class _SelectedOpt {
+  _SelectedOpt({
+    required this.name,
+    required this.qty,
+    required this.priceDelta,
+    required this.calories,
+    required this.protein,
+    required this.carbs,
+    required this.fat,
+  });
+
+  final String name;
+  final int qty;
+  final double priceDelta;
+  final double calories;
+  final double protein;
+  final double carbs;
+  final double fat;
+}
+
+class _Totals {
+  _Totals({
+    required this.basePrice,
+    required this.addonsPrice,
+    required this.finalPrice,
+    required this.baseCalories,
+    required this.baseProtein,
+    required this.baseCarbs,
+    required this.baseFat,
+    required this.addonsCalories,
+    required this.addonsProtein,
+    required this.addonsCarbs,
+    required this.addonsFat,
+    required this.finalCalories,
+    required this.finalProtein,
+    required this.finalCarbs,
+    required this.finalFat,
+    required this.selected,
+  });
+
+  final double basePrice;
+  final double addonsPrice;
+  final double finalPrice;
+
+  final double baseCalories;
+  final double baseProtein;
+  final double baseCarbs;
+  final double baseFat;
+
+  final double addonsCalories;
+  final double addonsProtein;
+  final double addonsCarbs;
+  final double addonsFat;
+
+  final double finalCalories;
+  final double finalProtein;
+  final double finalCarbs;
+  final double finalFat;
+
+  final List<_SelectedOpt> selected;
 }
