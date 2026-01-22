@@ -15,7 +15,6 @@ import 'package:v0_0_0_cheffery_pos/core/themes/designs.dart';
 import 'package:v0_0_0_cheffery_pos/core/global_widgets/confirm_dialog_widget.dart';
 import 'package:v0_0_0_cheffery_pos/core/global_providers/supabase_provider.dart';
 
-import 'package:v0_0_0_cheffery_pos/public_front_end/cart/cart_provider.dart';
 import 'package:v0_0_0_cheffery_pos/public_front_end/cart/cart_page.dart';
 
 import 'package:v0_0_0_cheffery_pos/public_front_end/menu/cart_slider_widget.dart';
@@ -23,6 +22,9 @@ import 'package:v0_0_0_cheffery_pos/public_front_end/menu/menu_data_source.dart'
 import 'package:v0_0_0_cheffery_pos/public_front_end/menu/menu_models.dart';
 import 'package:v0_0_0_cheffery_pos/public_front_end/menu/menu_item_card_widget.dart';
 import 'package:v0_0_0_cheffery_pos/public_front_end/menu/product_variations.dart';
+
+import 'package:v0_0_0_cheffery_pos/core/global_providers/pos_user_provider.dart';
+import 'package:v0_0_0_cheffery_pos/public_front_end/cart/cart_provider.dart';
 
 class MenuPage extends ConsumerStatefulWidget {
   const MenuPage({super.key});
@@ -49,7 +51,6 @@ class _MenuPageState extends ConsumerState<MenuPage> {
   // =============================
   // Initial-load / caching flags
   // =============================
-  //bool _initialCategoryResolved = false;
   bool _initialLoading = true;
 
   final Map<int, bool> _catLoading = {}; // categoryId -> loading
@@ -183,7 +184,6 @@ class _MenuPageState extends ConsumerState<MenuPage> {
 
   // =========================================================
   // One-time initial load: show first category ASAP then prefetch rest
-  // This helpps give the appearance of faster data pulling. Loading images slows things down otherwise making the ui not loading for bit.
   // =========================================================
   void _kickOffInitialLoads(List<MenuCategoryTab> categories) {
     if (_didKickOffPrefetch) return;
@@ -360,6 +360,19 @@ class _MenuPageState extends ConsumerState<MenuPage> {
 
   @override
   Widget build(BuildContext context) {
+    // ===== Ensure a POS customer is selected (session guard) =====
+    final posUserId = ref.watch(activePosUserIdProvider);
+
+    if (posUserId == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!context.mounted) return;
+        Navigator.pushReplacementNamed(context, '/get_user_phone');
+      });
+
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
+    // Cart badge
     final cartCount = ref.watch(cartCountProvider);
     final cartDisplay = cartCount > 99 ? '99+' : cartCount.toString();
 
@@ -369,11 +382,6 @@ class _MenuPageState extends ConsumerState<MenuPage> {
         cartCount: cartCount,
         onGoToCart: () async {
           Navigator.of(context).pop();
-
-          // Later, when CartPage exists, refresh on return:
-          // await Navigator.of(context).push(...);
-          // await refreshMenuData();
-
           Navigator.of(
             context,
           ).push(MaterialPageRoute(builder: (_) => const CartPage()));
@@ -417,7 +425,28 @@ class _MenuPageState extends ConsumerState<MenuPage> {
                             );
 
                             if (leave == true && context.mounted) {
-                              Navigator.maybePop(context);
+                              // VOID TRANSACTION: clear cart for current ORDER (store scoped)
+                              await ref.read(clearCartProvider)();
+
+                              // Clear active customer session
+                              ref.read(activePosUserIdProvider.notifier).state =
+                                  null;
+                              ref
+                                      .read(activePosUserPhoneProvider.notifier)
+                                      .state =
+                                  null;
+                              ref
+                                      .read(
+                                        activePosUserFirstNameProvider.notifier,
+                                      )
+                                      .state =
+                                  null;
+
+                              // Return to POS welcome
+                              Navigator.of(context).pushNamedAndRemoveUntil(
+                                '/welcome',
+                                (route) => false,
+                              );
                             }
                           },
                           borderRadius: BorderRadius.circular(24),
@@ -441,7 +470,8 @@ class _MenuPageState extends ConsumerState<MenuPage> {
                             fit: BoxFit.contain,
                           ),
                         ),
-                        const SizedBox(width: 20),
+
+                        const SizedBox(width: 12),
 
                         // Search (Local cache only)
                         Expanded(
@@ -700,10 +730,7 @@ class _MenuPageState extends ConsumerState<MenuPage> {
                           final item = _visibleItems[index];
                           return MenuItemCard(
                             item: item,
-                            // Tapping the tile goes to the variations for it
                             onTap: () async {
-                              //ref.read(cartCountProvider.notifier).state++;
-
                               FocusScope.of(context).unfocus();
 
                               final key = _itemKey(item);
@@ -729,9 +756,6 @@ class _MenuPageState extends ConsumerState<MenuPage> {
                                   ),
                                 ),
                               );
-
-                              // If later its wanted to refresh menu after returning:
-                              // await refreshMenuData();
                             },
                           );
                         },

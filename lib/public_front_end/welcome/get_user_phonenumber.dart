@@ -8,8 +8,9 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import 'package:v0_0_0_cheffery_pos/core/global_providers/supabase_provider.dart';
-import 'package:v0_0_0_cheffery_pos/core/global_providers/store_phone_provider.dart';
+import 'package:v0_0_0_cheffery_pos/core/global_providers/pos_store_provider.dart';
 import 'package:v0_0_0_cheffery_pos/auth/auth_router.dart';
 import 'package:v0_0_0_cheffery_pos/core/themes/designs.dart';
 import 'package:v0_0_0_cheffery_pos/core/global_providers/pos_user_provider.dart';
@@ -113,18 +114,37 @@ class _GetUserPhoneNumberPageState
           (route) => false,
         );
 
+        // Clear active POS customer just in case
+        ref.read(activePosUserIdProvider.notifier).state = null;
+        ref.read(activePosUserPhoneProvider.notifier).state = null;
+        ref.read(activePosUserFirstNameProvider.notifier).state = null;
+
         await supabase.auth.signOut();
         return;
       }
 
+      // Look for existing POS user
       final resp = await supabase
           .from('pos_users')
-          .select('id')
+          .select('id, first_name')
           .eq('phone_number', e164)
           .maybeSingle();
 
-      // If found -> go to menu
+      // If found -> set active customer + go to menu
       if (resp != null) {
+        final id = resp['id'] as int;
+
+        ref.read(activePosUserIdProvider.notifier).state = id;
+        ref.read(activePosUserPhoneProvider.notifier).state = e164;
+        ref.read(activePosUserFirstNameProvider.notifier).state =
+            (resp['first_name'] as String?)?.trim();
+
+        // Optional: update last_seen_at
+        await supabase
+            .from('pos_users')
+            .update({'last_seen_at': DateTime.now().toIso8601String()})
+            .eq('id', id);
+
         if (!mounted) return;
         Navigator.pushReplacementNamed(context, '/menu');
         return;
