@@ -12,6 +12,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:v0_0_0_cheffery_pos/core/global_providers/supabase_provider.dart';
 import 'package:v0_0_0_cheffery_pos/core/themes/designs.dart';
 import 'package:v0_0_0_cheffery_pos/store_front_end/menu_management/menu_management_data_source.dart';
+import 'package:v0_0_0_cheffery_pos/store_front_end/menu_management/product_variations_page.dart';
 
 class MenuManagementPage extends ConsumerStatefulWidget {
   const MenuManagementPage({super.key});
@@ -366,6 +367,17 @@ class _MenuManagementPageState extends ConsumerState<MenuManagementPage> {
                                     product['product_id'] as int,
                                     product['name'] as String,
                                   ),
+                                  onManageVariations: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => ProductVariationsPage(
+                                          productId: product['product_id'] as int,
+                                          productName: product['name'] as String,
+                                        ),
+                                      ),
+                                    );
+                                  },
                                 );
                               }),
                             const SizedBox(height: 8),
@@ -384,11 +396,13 @@ class _ProductCard extends StatelessWidget {
   final Map<String, dynamic> product;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
+  final VoidCallback onManageVariations;
 
   const _ProductCard({
     required this.product,
     required this.onEdit,
     required this.onDelete,
+    required this.onManageVariations,
   });
 
   @override
@@ -458,12 +472,19 @@ class _ProductCard extends StatelessWidget {
               ),
             ),
             IconButton(
+              icon: const Icon(Icons.tune, color: AppColors.accent),
+              onPressed: onManageVariations,
+              tooltip: 'Manage Variations',
+            ),
+            IconButton(
               icon: const Icon(Icons.edit, color: Colors.white70),
               onPressed: onEdit,
+              tooltip: 'Edit Product',
             ),
             IconButton(
               icon: const Icon(Icons.delete, color: Colors.red),
               onPressed: onDelete,
+              tooltip: 'Delete Product',
             ),
           ],
         ),
