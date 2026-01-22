@@ -1,7 +1,7 @@
 // Cheffery - get_user_firstname.dart
 //
 // This page is designed to get the first name from the user if they have never entered their phone number before.
-// It will store their first name and put it on the reciept
+// It will store their first name and put it on the reciept. Also gets the stores id for checkout process
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,6 +9,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:v0_0_0_cheffery_pos/core/global_providers/supabase_provider.dart';
 import 'package:v0_0_0_cheffery_pos/core/global_widgets/confirm_dialog_widget.dart';
 import 'package:v0_0_0_cheffery_pos/core/themes/designs.dart';
+
+import 'package:v0_0_0_cheffery_pos/core/global_providers/pos_user_provider.dart';
 
 class GetUserFirstNamePage extends ConsumerStatefulWidget {
   const GetUserFirstNamePage({super.key});
@@ -68,11 +70,25 @@ class _GetUserFirstNamePageState extends ConsumerState<GetUserFirstNamePage> {
     try {
       final supabase = ref.read(supabaseProvider);
 
-      await supabase.from('pos_users').insert({
-        'phone_number': phoneE164,
-        'first_name': firstName,
-        // created_at + last_seen_at handled by defaults
-      });
+      // Insert and return the created row so we can set the active POS customer.
+      final created = await supabase
+          .from('pos_users')
+          .insert({
+            'phone_number': phoneE164,
+            'first_name': firstName,
+            // created_at + last_seen_at handled by defaults
+          })
+          .select('id, phone_number, first_name')
+          .single();
+
+      final id = created['id'] as int;
+      final phone = (created['phone_number'] as String?) ?? phoneE164;
+      final name = (created['first_name'] as String?)?.trim();
+
+      // Set active customer providers (session state)
+      ref.read(activePosUserIdProvider.notifier).state = id;
+      ref.read(activePosUserPhoneProvider.notifier).state = phone;
+      ref.read(activePosUserFirstNameProvider.notifier).state = name;
 
       if (!mounted) return;
       Navigator.pushReplacementNamed(context, '/menu');
