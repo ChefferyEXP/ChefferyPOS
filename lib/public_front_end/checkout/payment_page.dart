@@ -3,6 +3,7 @@
 // WIP
 // This page is what will send the total amount for the order to square/stripe. If payment succeeds, order will be created.
 
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -28,13 +29,18 @@ class _PaymentPageState extends ConsumerState<PaymentPage>
   late final AnimationController _controller;
 
   String _money(num v) => '\$${v.toStringAsFixed(2)}';
+  static const double _twoPi = 6.283185307179586;
 
   @override
   void initState() {
     super.initState();
+
+    // One controller drives both:
+    // - ring rotation: continuous loop
+    // - card breathe: sin wave derived from controller value
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 2),
+      duration: const Duration(milliseconds: 2000),
     )..repeat();
   }
 
@@ -91,8 +97,6 @@ class _PaymentPageState extends ConsumerState<PaymentPage>
           style: TextStyle(fontWeight: FontWeight.w900),
         ),
       ),
-
-      // scroll + keep centered when there’s room
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
@@ -115,25 +119,37 @@ class _PaymentPageState extends ConsumerState<PaymentPage>
                           ),
                         ),
                         const SizedBox(height: 18),
-
                         AnimatedBuilder(
                           animation: _controller,
                           builder: (context, _) {
-                            return Transform.rotate(
-                              angle:
-                                  _controller.value * 6.283185307179586, // 2π
-                              child: SizedBox(
-                                width: outerSize + spinPad,
-                                height: outerSize + spinPad,
-                                child: Center(
-                                  child: SizedBox(
-                                    width: outerSize,
-                                    height: outerSize,
-                                    child: Stack(
-                                      alignment: Alignment.center,
-                                      children: [
-                                        // Gradient ring
-                                        Container(
+                            // ring rotation (continuous)
+                            final ringAngle = _controller.value * _twoPi;
+
+                            // breathe (guaranteed 0..1)
+                            final breathe01 = (1 + math.sin(ringAngle)) / 2;
+                            final t = Curves.easeInOut.transform(breathe01);
+
+                            final scale = 0.94 + (0.06 * t); // 0.94 -> 1.00
+
+                            // subtle breathing shadow
+                            final shadowBlur = 12 + (6 * t);
+                            final shadowY = 8 + (4 * t);
+                            final shadowOpacity = 0.07 + (0.03 * t);
+
+                            return SizedBox(
+                              width: outerSize + spinPad,
+                              height: outerSize + spinPad,
+                              child: Center(
+                                child: SizedBox(
+                                  width: outerSize,
+                                  height: outerSize,
+                                  child: Stack(
+                                    alignment: Alignment.center,
+                                    children: [
+                                      // Rotating gradient ring ONLY
+                                      Transform.rotate(
+                                        angle: ringAngle,
+                                        child: Container(
                                           width: outerSize,
                                           height: outerSize,
                                           decoration: BoxDecoration(
@@ -158,27 +174,28 @@ class _PaymentPageState extends ConsumerState<PaymentPage>
                                             ],
                                           ),
                                         ),
+                                      ),
 
-                                        // Inner white cutout
-                                        Container(
-                                          width:
-                                              outerSize - (ringThickness * 2),
-                                          height:
-                                              outerSize - (ringThickness * 2),
-                                          decoration: BoxDecoration(
-                                            shape: BoxShape.circle,
-                                            color: Colors.white,
-                                            border: Border.all(
-                                              color: Colors.black.withOpacity(
-                                                0.06,
-                                              ),
-                                              width: 1.2,
+                                      // Stationary inner cutout
+                                      Container(
+                                        width: outerSize - (ringThickness * 2),
+                                        height: outerSize - (ringThickness * 2),
+                                        decoration: BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          color: Colors.white,
+                                          border: Border.all(
+                                            color: Colors.black.withOpacity(
+                                              0.06,
                                             ),
+                                            width: 1.2,
                                           ),
                                         ),
+                                      ),
 
-                                        // Card
-                                        Container(
+                                      // Stationary (but breathing) card
+                                      Transform.scale(
+                                        scale: scale,
+                                        child: Container(
                                           width: cardW,
                                           height: cardH,
                                           decoration: BoxDecoration(
@@ -202,10 +219,10 @@ class _PaymentPageState extends ConsumerState<PaymentPage>
                                             boxShadow: [
                                               BoxShadow(
                                                 color: Colors.black.withOpacity(
-                                                  0.08,
+                                                  shadowOpacity,
                                                 ),
-                                                blurRadius: 14,
-                                                offset: const Offset(0, 10),
+                                                blurRadius: shadowBlur,
+                                                offset: Offset(0, shadowY),
                                               ),
                                             ],
                                           ),
@@ -215,7 +232,6 @@ class _PaymentPageState extends ConsumerState<PaymentPage>
                                             ),
                                             child: Stack(
                                               children: [
-                                                // subtle highlight sheen
                                                 Positioned(
                                                   left: -40,
                                                   top: -30,
@@ -229,8 +245,6 @@ class _PaymentPageState extends ConsumerState<PaymentPage>
                                                     ),
                                                   ),
                                                 ),
-
-                                                //make the internal layout fit the fixed card height
                                                 Padding(
                                                   padding:
                                                       const EdgeInsets.fromLTRB(
@@ -246,10 +260,8 @@ class _PaymentPageState extends ConsumerState<PaymentPage>
                                                         CrossAxisAlignment
                                                             .stretch,
                                                     children: [
-                                                      // Mag stripe
                                                       Container(
-                                                        height:
-                                                            14, // slightly smaller
+                                                        height: 14,
                                                         decoration: BoxDecoration(
                                                           color: Colors.black
                                                               .withOpacity(
@@ -262,8 +274,6 @@ class _PaymentPageState extends ConsumerState<PaymentPage>
                                                         ),
                                                       ),
                                                       const SizedBox(height: 6),
-
-                                                      // Logos + text (kept)
                                                       Row(
                                                         children: [
                                                           _logoInside(
@@ -304,9 +314,7 @@ class _PaymentPageState extends ConsumerState<PaymentPage>
                                                           ),
                                                         ],
                                                       ),
-
                                                       const SizedBox(height: 6),
-
                                                       Flexible(
                                                         child: Align(
                                                           alignment: Alignment
@@ -394,17 +402,15 @@ class _PaymentPageState extends ConsumerState<PaymentPage>
                                             ),
                                           ),
                                         ),
-                                      ],
-                                    ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ),
                             );
                           },
                         ),
-
                         const SizedBox(height: 16),
-
                         Text(
                           _money(widget.total),
                           style: const TextStyle(
