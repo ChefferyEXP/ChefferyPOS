@@ -372,9 +372,20 @@ class _MenuPageState extends ConsumerState<MenuPage> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
+    final media = MediaQuery.of(context);
+    final isLandscape = media.orientation == Orientation.landscape;
+    final isPhoneWidth = media.size.width < 600; // good practical breakpoint
+
     // Cart badge
     final cartCount = ref.watch(cartCountProvider);
     final cartDisplay = cartCount > 99 ? '99+' : cartCount.toString();
+
+    // === Top bar sizing tweaks for mobile ===
+    final logoHeight = isPhoneWidth ? 64.0 : 90.0;
+    final searchHeight = isPhoneWidth ? 44.0 : 50.0;
+    final searchHintFontSize = isPhoneWidth ? 12.0 : 16.0;
+    final searchTextFontSize = isPhoneWidth ? 11.5 : 14.0;
+    final searchIconSize = isPhoneWidth ? 18.0 : 20.0;
 
     return Scaffold(
       key: _scaffoldKey,
@@ -406,7 +417,7 @@ class _MenuPageState extends ConsumerState<MenuPage> {
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        // Back arrow - Warns user that it will void transaction if they proceed. Returns to POS welcome page
+                        // Back arrow
                         InkWell(
                           onTap: () async {
                             final leave = await showDialog<bool>(
@@ -425,10 +436,8 @@ class _MenuPageState extends ConsumerState<MenuPage> {
                             );
 
                             if (leave == true && context.mounted) {
-                              // VOID TRANSACTION: clear cart for current ORDER (store scoped)
                               await ref.read(clearCartProvider)();
 
-                              // Clear active customer session
                               ref.read(activePosUserIdProvider.notifier).state =
                                   null;
                               ref
@@ -442,7 +451,6 @@ class _MenuPageState extends ConsumerState<MenuPage> {
                                       .state =
                                   null;
 
-                              // Return to POS welcome
                               Navigator.of(context).pushNamedAndRemoveUntil(
                                 '/welcome',
                                 (route) => false,
@@ -462,9 +470,9 @@ class _MenuPageState extends ConsumerState<MenuPage> {
 
                         const SizedBox(width: 6),
 
-                        // LOGO
+                        // LOGO (smaller on phone)
                         SizedBox(
-                          height: 90,
+                          height: logoHeight,
                           child: Image.asset(
                             'assets/logos/freshBlendzLogo.png',
                             fit: BoxFit.contain,
@@ -473,10 +481,10 @@ class _MenuPageState extends ConsumerState<MenuPage> {
 
                         const SizedBox(width: 12),
 
-                        // Search (Local cache only)
+                        // Search (smaller text on phone)
                         Expanded(
                           child: Container(
-                            height: 50,
+                            height: searchHeight,
                             alignment: Alignment.center,
                             decoration: BoxDecoration(
                               color: Colors.white.withOpacity(0.95),
@@ -486,29 +494,32 @@ class _MenuPageState extends ConsumerState<MenuPage> {
                               controller: _searchController,
                               textInputAction: TextInputAction.search,
                               textAlignVertical: TextAlignVertical.center,
-                              decoration: const InputDecoration(
+                              decoration: InputDecoration(
                                 prefixIcon: Icon(
                                   Icons.search,
-                                  size: 20,
+                                  size: searchIconSize,
                                   color: Colors.black54,
                                 ),
                                 hintText: 'What\'s your flavor today?',
                                 hintStyle: TextStyle(
-                                  fontSize: 16,
+                                  fontSize: searchHintFontSize,
                                   color: Colors.black45,
                                 ),
                                 border: InputBorder.none,
                                 isDense: true,
                                 contentPadding: EdgeInsets.symmetric(
-                                  vertical: 12,
+                                  vertical: isPhoneWidth ? 10 : 12,
                                 ),
                               ),
-                              style: const TextStyle(fontSize: 14, height: 1.2),
+                              style: TextStyle(
+                                fontSize: searchTextFontSize,
+                                height: 1.2,
+                              ),
                             ),
                           ),
                         ),
 
-                        const SizedBox(width: 20),
+                        SizedBox(width: isPhoneWidth ? 12 : 20),
 
                         // Cart
                         InkWell(
@@ -521,12 +532,12 @@ class _MenuPageState extends ConsumerState<MenuPage> {
                             clipBehavior: Clip.none,
                             children: [
                               CircleAvatar(
-                                radius: 26,
+                                radius: isPhoneWidth ? 22 : 26,
                                 backgroundColor: Colors.white.withOpacity(0.95),
-                                child: const Icon(
+                                child: Icon(
                                   Icons.shopping_cart_outlined,
                                   color: Colors.black87,
-                                  size: 24,
+                                  size: isPhoneWidth ? 22 : 24,
                                 ),
                               ),
                               if (cartCount > 0)
@@ -617,54 +628,129 @@ class _MenuPageState extends ConsumerState<MenuPage> {
                           _kickOffInitialLoads(categories);
                         });
 
+                        final maxVisible = isLandscape ? 5 : 4;
+
+                        if (categories.length <= maxVisible) {
+                          // ===== Span full width (no scroll) =====
+                          return SizedBox(
+                            height: 46,
+                            child: Row(
+                              children: List.generate(categories.length, (
+                                index,
+                              ) {
+                                final isSelected =
+                                    index == _selectedCategoryIndex;
+                                final label = categories[index].label;
+
+                                return Expanded(
+                                  child: InkWell(
+                                    onTap: () => _onCategoryTap(index),
+                                    child: Column(
+                                      mainAxisAlignment: MainAxisAlignment.end,
+                                      children: [
+                                        FittedBox(
+                                          fit: BoxFit.scaleDown,
+                                          child: Text(
+                                            label,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              fontSize: isPhoneWidth
+                                                  ? 15.5
+                                                  : 17,
+                                              fontWeight: isSelected
+                                                  ? FontWeight.w700
+                                                  : FontWeight.w600,
+                                              color: Colors.black,
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        AnimatedContainer(
+                                          duration: const Duration(
+                                            milliseconds: 180,
+                                          ),
+                                          height: 3,
+                                          width: isSelected ? 28 : 0,
+                                          decoration: BoxDecoration(
+                                            color: Colors.black,
+                                            borderRadius: BorderRadius.circular(
+                                              99,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              }),
+                            ),
+                          );
+                        }
+
+                        // ===== Too many categories -> scroll =====
                         return SizedBox(
                           height: 46,
-                          child: Row(
-                            children: List.generate(categories.length, (index) {
-                              final isSelected =
-                                  index == _selectedCategoryIndex;
-                              final label = categories[index].label;
+                          child: SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            physics: const BouncingScrollPhysics(),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                              ),
+                              child: Row(
+                                children: List.generate(categories.length, (
+                                  index,
+                                ) {
+                                  final isSelected =
+                                      index == _selectedCategoryIndex;
+                                  final label = categories[index].label;
 
-                              return Expanded(
-                                child: InkWell(
-                                  onTap: () => _onCategoryTap(index),
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.end,
-                                    children: [
-                                      FittedBox(
-                                        fit: BoxFit.scaleDown,
-                                        child: Text(
-                                          label,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: TextStyle(
-                                            fontSize: 17,
-                                            fontWeight: isSelected
-                                                ? FontWeight.w700
-                                                : FontWeight.w600,
-                                            color: Colors.black,
+                                  return Padding(
+                                    padding: EdgeInsets.symmetric(
+                                      horizontal: isPhoneWidth ? 14 : 18,
+                                    ),
+                                    child: InkWell(
+                                      onTap: () => _onCategoryTap(index),
+                                      borderRadius: BorderRadius.circular(16),
+                                      child: Column(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.end,
+                                        children: [
+                                          Text(
+                                            label,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              fontSize: isPhoneWidth
+                                                  ? 15.5
+                                                  : 17,
+                                              fontWeight: isSelected
+                                                  ? FontWeight.w700
+                                                  : FontWeight.w600,
+                                              color: Colors.black,
+                                            ),
                                           ),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 8),
-                                      AnimatedContainer(
-                                        duration: const Duration(
-                                          milliseconds: 180,
-                                        ),
-                                        height: 3,
-                                        width: isSelected ? 28 : 0,
-                                        decoration: BoxDecoration(
-                                          color: Colors.black,
-                                          borderRadius: BorderRadius.circular(
-                                            99,
+                                          const SizedBox(height: 8),
+                                          AnimatedContainer(
+                                            duration: const Duration(
+                                              milliseconds: 180,
+                                            ),
+                                            height: 3,
+                                            width: isSelected ? 28 : 0,
+                                            decoration: BoxDecoration(
+                                              color: Colors.black,
+                                              borderRadius:
+                                                  BorderRadius.circular(99),
+                                            ),
                                           ),
-                                        ),
+                                        ],
                                       ),
-                                    ],
-                                  ),
-                                ),
-                              );
-                            }),
+                                    ),
+                                  );
+                                }),
+                              ),
+                            ),
                           ),
                         );
                       },
@@ -681,11 +767,19 @@ class _MenuPageState extends ConsumerState<MenuPage> {
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
                   child: LayoutBuilder(
                     builder: (context, c) {
-                      final crossAxisCount = c.maxWidth >= 700
+                      final isLandscapeLocal = c.maxWidth > c.maxHeight;
+                      final isPhoneWidthLocal = c.maxWidth < 600;
+
+                      // Landscape: 5 columns
+                      // Portrait: phone -> 2 columns, tablet -> 3 columns
+                      final crossAxisCount = isLandscapeLocal
                           ? 5
-                          : c.maxWidth >= 420
-                          ? 4
-                          : 3;
+                          : (isPhoneWidthLocal ? 2 : 3);
+
+                      // Give phone cards a bit more vertical space so text doesn't feel cramped
+                      final childAspectRatio = isLandscapeLocal
+                          ? 0.78
+                          : (isPhoneWidthLocal ? 0.68 : 0.75);
 
                       if (_initialLoading) {
                         return const Center(child: CircularProgressIndicator());
@@ -724,7 +818,7 @@ class _MenuPageState extends ConsumerState<MenuPage> {
                           crossAxisCount: crossAxisCount,
                           crossAxisSpacing: 12,
                           mainAxisSpacing: 14,
-                          childAspectRatio: 0.75,
+                          childAspectRatio: childAspectRatio,
                         ),
                         itemBuilder: (context, index) {
                           final item = _visibleItems[index];

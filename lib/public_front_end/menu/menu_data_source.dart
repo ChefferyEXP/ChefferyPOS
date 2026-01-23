@@ -115,13 +115,16 @@ class MenuDataSource {
 
     if (junctionIds.isEmpty) return const [];
 
+    // include base_price in query
     final productRows = await supabase
         .from('store_menu_products')
         .select(
-          'product_id,name,subtitle,calories,highlighted_feature,image_uri,protein',
+          'product_id,name,subtitle,calories,highlighted_feature,image_uri,protein,base_price',
         )
         .inFilter('id_store_menu_categories_junction', junctionIds)
         .order('product_id', ascending: true);
+
+    double _d(dynamic v) => (v is num) ? v.toDouble() : 0.0;
 
     final baseItems = (productRows as List).map((r) {
       final productId = r['product_id'] as int;
@@ -140,6 +143,9 @@ class MenuDataSource {
           ? null
           : imageUri.replaceFirst(RegExp(r'^menu-images/'), '');
 
+      // parse base_price safely
+      final base_price = _d(r['base_price']);
+
       // Store product_id lookup using the EXACT values that go into MenuCardItem
       final key = _itemKey(
         name: name,
@@ -154,6 +160,7 @@ class MenuDataSource {
         calories: caloriesVal == null ? '' : '${caloriesVal} cal',
         highlighted_feature: highlighted,
         image_uri: normalizedImageUri,
+        base_price: base_price,
         signedImageUrl: null,
         badgeText: null,
       );

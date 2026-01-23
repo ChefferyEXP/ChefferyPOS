@@ -25,17 +25,24 @@ class MenuCardItem {
   final String? signedImageUrl;
   final String? badgeText;
 
+  final double base_price;
+
   const MenuCardItem({
     required this.name,
     required this.subtitle,
     required this.calories,
     required this.highlighted_feature,
     required this.image_uri,
+    required this.base_price,
     this.signedImageUrl,
     this.badgeText,
   });
 
-  MenuCardItem copyWith({String? signedImageUrl}) {
+  MenuCardItem copyWith({
+    String? signedImageUrl,
+    String? badgeText,
+    double? base_price,
+  }) {
     return MenuCardItem(
       name: name,
       subtitle: subtitle,
@@ -43,7 +50,8 @@ class MenuCardItem {
       highlighted_feature: highlighted_feature,
       image_uri: image_uri,
       signedImageUrl: signedImageUrl ?? this.signedImageUrl,
-      badgeText: badgeText,
+      badgeText: badgeText ?? this.badgeText,
+      base_price: base_price ?? this.base_price,
     );
   }
 }

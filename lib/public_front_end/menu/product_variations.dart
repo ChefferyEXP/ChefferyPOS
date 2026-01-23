@@ -321,7 +321,7 @@ class _ProductVariationsPageState extends ConsumerState<ProductVariationsPage> {
       }
       opt.quantity = 0;
     } else {
-      // per-option max check (only relevant if max == 0? unlimited)
+      // per-option max check
       if (group.max > 0 && 1 > group.max) return;
       opt.quantity = 1;
     }
@@ -336,7 +336,7 @@ class _ProductVariationsPageState extends ConsumerState<ProductVariationsPage> {
       return;
     }
 
-    // per-option max (NOT group sum)
+    // per-option max
     if (group.max > 0 && opt.quantity >= group.max) return;
 
     opt.quantity += 1;
@@ -539,6 +539,8 @@ class _ProductVariationsPageState extends ConsumerState<ProductVariationsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final isPhone = MediaQuery.sizeOf(context).width < 600;
+
     final menuItem = widget.item;
     final row = _productRow;
 
@@ -547,6 +549,9 @@ class _ProductVariationsPageState extends ConsumerState<ProductVariationsPage> {
     final description = ((row?['description'] ?? '') ?? '').toString();
 
     final totals = _computeTotals();
+
+    // Give the pinned card more height so the ingredients
+    final pinnedHeight = isPhone ? 200.0 : 150.0;
 
     return Scaffold(
       body: Container(
@@ -610,8 +615,8 @@ class _ProductVariationsPageState extends ConsumerState<ProductVariationsPage> {
                     backgroundColor: Colors.transparent,
                     automaticallyImplyLeading: false,
                     toolbarHeight: 0,
-                    collapsedHeight: 150,
-                    expandedHeight: 150,
+                    collapsedHeight: pinnedHeight,
+                    expandedHeight: pinnedHeight,
                     flexibleSpace: Padding(
                       padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
                       child: _PinnedProductCard(
@@ -684,62 +689,51 @@ class _ProductVariationsPageState extends ConsumerState<ProductVariationsPage> {
               ),
 
               // =========================================================
-              // Bottom totals bar (flush to bottom)
+              // Bottom totals bar (COMPACT) (flush to bottom)
               // =========================================================
               Align(
                 alignment: Alignment.bottomCenter,
                 child: SafeArea(
                   top: false,
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                      16,
-                      10,
-                      16,
-                      0,
-                    ), // no bottom gap
+                    padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
                     child: Container(
-                      padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+                      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.96),
-                        borderRadius: BorderRadius.circular(18),
+                        color: Colors.white.withOpacity(0.98),
+                        borderRadius: BorderRadius.circular(20),
                         border: Border.all(
                           color: Colors.black.withOpacity(0.06),
                         ),
                         boxShadow: [
                           BoxShadow(
                             color: Colors.black.withOpacity(0.14),
-                            blurRadius: 14,
-                            offset: const Offset(0, -4),
+                            blurRadius: 18,
+                            offset: const Offset(0, -6),
                           ),
                         ],
                       ),
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          // ─── price pills row ───
+                          // ─── compact summary strip ───
                           Row(
                             children: [
                               Expanded(
-                                child: _CompactPricePill(
-                                  label: 'Base',
+                                child: _MiniSummaryChip(
+                                  icon: Icons.local_offer_outlined,
+                                  label: 'Base price',
                                   value: _money(totals.basePrice),
                                 ),
                               ),
-                              const SizedBox(width: 8),
+                              const SizedBox(width: 10),
                               Expanded(
-                                child: _CompactPricePill(
+                                child: _MiniSummaryChip(
+                                  icon: Icons.tune,
                                   label: 'Add-ons',
                                   value: totals.addonsPrice == 0
                                       ? _money(0)
                                       : '+ ${_money(totals.addonsPrice)}',
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: _CompactPricePill(
-                                  label: 'Per Item',
-                                  value: _money(totals.finalPrice),
-                                  bold: true,
                                 ),
                               ),
                             ],
@@ -747,96 +741,169 @@ class _ProductVariationsPageState extends ConsumerState<ProductVariationsPage> {
 
                           const SizedBox(height: 10),
 
-                          // ─── qty + total + add button ───
+                          // ─── main action row ───
                           Row(
                             children: [
-                              _QtyChipStepper(
-                                qty: _cartQty,
-                                onDec: (_loading || _adding || _cartQty <= 1)
-                                    ? null
-                                    : _decCartQty,
-                                onInc: (_loading || _adding)
-                                    ? null
-                                    : _incCartQty,
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 10,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFF6F6F6),
-                                    borderRadius: BorderRadius.circular(14),
-                                  ),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      const Text(
-                                        'Total',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w800,
-                                          color: Colors.black54,
-                                          fontSize: 12,
-                                        ),
+                              // Quantity block (slightly slimmer)
+                              Container(
+                                height: 48,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF6F6F6),
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    IconButton(
+                                      onPressed:
+                                          (_loading || _adding || _cartQty <= 1)
+                                          ? null
+                                          : _decCartQty,
+                                      icon: const Icon(
+                                        Icons.remove_circle_outline,
                                       ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        _money(totals.finalPrice * _cartQty),
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.w900,
-                                          fontSize: 16,
-                                          color: Colors.black87,
-                                        ),
+                                      splashRadius: 18,
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(
+                                        minWidth: 40,
                                       ),
-                                    ],
-                                  ),
+                                    ),
+                                    Column(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        const Text(
+                                          'QTY',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w900,
+                                            fontSize: 10,
+                                            color: Colors.black54,
+                                            letterSpacing: 0.6,
+                                          ),
+                                        ),
+                                        Text(
+                                          '$_cartQty',
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w900,
+                                            fontSize: 15,
+                                            color: Colors.black87,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    IconButton(
+                                      onPressed: (_loading || _adding)
+                                          ? null
+                                          : _incCartQty,
+                                      icon: const Icon(
+                                        Icons.add_circle_outline,
+                                      ),
+                                      splashRadius: 18,
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(
+                                        minWidth: 40,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
+
                               const SizedBox(width: 10),
-                              SizedBox(
-                                height: 48,
-                                child: ElevatedButton(
-                                  onPressed: (_loading || _adding)
-                                      ? null
-                                      : () => _addToCart(totals),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.black,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(14),
+
+                              Expanded(
+                                child: SizedBox(
+                                  height: 48,
+                                  child: ElevatedButton(
+                                    onPressed: (_loading || _adding)
+                                        ? null
+                                        : () => _addToCart(totals),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.black,
+                                      disabledBackgroundColor: Colors.black
+                                          .withOpacity(0.35),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(16),
+                                      ),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 14,
+                                      ),
+                                      elevation: 0,
                                     ),
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 14,
-                                    ),
-                                  ),
-                                  child: _adding
-                                      ? const SizedBox(
-                                          width: 22,
-                                          height: 22,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                            color: Colors.white,
-                                          ),
-                                        )
-                                      : Row(
-                                          children: const [
-                                            Icon(
-                                              Icons.add_shopping_cart,
+                                    child: _adding
+                                        ? const SizedBox(
+                                            width: 22,
+                                            height: 22,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
                                               color: Colors.white,
-                                              size: 18,
                                             ),
-                                            SizedBox(width: 8),
-                                            Text(
-                                              'Add',
-                                              style: TextStyle(
+                                          )
+                                        : Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.center,
+                                            children: [
+                                              const Icon(
+                                                Icons.add_shopping_cart,
                                                 color: Colors.white,
-                                                fontWeight: FontWeight.w900,
+                                                size: 18,
                                               ),
-                                            ),
-                                          ],
-                                        ),
+                                              const SizedBox(width: 10),
+
+                                              const Text(
+                                                'Add to cart',
+                                                style: TextStyle(
+                                                  color: Colors.white,
+                                                  fontWeight: FontWeight.w900,
+                                                  fontSize: 15,
+                                                ),
+                                              ),
+
+                                              const SizedBox(width: 12),
+
+                                              // Price pill (centered, scales down if needed)
+                                              ConstrainedBox(
+                                                constraints:
+                                                    const BoxConstraints(
+                                                      maxWidth: 130,
+                                                    ),
+                                                child: Container(
+                                                  padding:
+                                                      const EdgeInsets.symmetric(
+                                                        horizontal: 10,
+                                                        vertical: 6,
+                                                      ),
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.white
+                                                        .withOpacity(0.14),
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          999,
+                                                        ),
+                                                  ),
+                                                  child: FittedBox(
+                                                    fit: BoxFit.scaleDown,
+                                                    child: Text(
+                                                      _money(
+                                                        totals.finalPrice *
+                                                            _cartQty,
+                                                      ),
+                                                      style: const TextStyle(
+                                                        color: Colors.white,
+                                                        fontWeight:
+                                                            FontWeight.w900,
+                                                        fontSize: 14,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                  ),
                                 ),
                               ),
                             ],
@@ -858,6 +925,72 @@ class _ProductVariationsPageState extends ConsumerState<ProductVariationsPage> {
 // =========================================================
 // UI widgets
 // =========================================================
+
+class _MiniSummaryChip extends StatelessWidget {
+  const _MiniSummaryChip({
+    required this.icon,
+    required this.label,
+    required this.value,
+    this.boldValue = false,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+  final bool boldValue;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 42,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      decoration: BoxDecoration(
+        color: boldValue ? const Color(0xFFEDEDED) : const Color(0xFFF6F6F6),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            icon,
+            size: 17,
+            color: boldValue ? Colors.black87 : Colors.black54,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label.toUpperCase(),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 9.5,
+                    color: Colors.black.withOpacity(0.55),
+                    letterSpacing: 0.7,
+                  ),
+                ),
+                const SizedBox(height: 1),
+                Text(
+                  value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontWeight: boldValue ? FontWeight.w900 : FontWeight.w800,
+                    fontSize: boldValue ? 14.5 : 13.5,
+                    color: Colors.black87,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 class _PinnedProductCard extends StatelessWidget {
   const _PinnedProductCard({
@@ -883,6 +1016,8 @@ class _PinnedProductCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isPhone = MediaQuery.sizeOf(context).width < 600;
+
     final url = item.signedImageUrl?.trim();
     final hasUrl = url != null && url.isNotEmpty;
 
@@ -953,42 +1088,59 @@ class _PinnedProductCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 8),
+
+                // Make pills shorter on phone so description fits
                 _HorizontalPills(
+                  height: isPhone ? 38 : 34,
+                  gap: isPhone ? 6 : 8,
                   children: [
-                    _ChipPill(text: 'Price ${_money(totals.finalPrice)}'),
+                    _ChipPill(
+                      text: 'Price ${_money(totals.finalPrice)}',
+                      isPhone: isPhone,
+                    ),
                     _ChipPill(
                       text: 'Calories ${_fmtMacro(totals.finalCalories)}',
+                      isPhone: isPhone,
                     ),
                     _ChipPill(
                       text:
                           'Protein ${_fmtMacro(totals.finalProtein, suffix: "g")}',
+                      isPhone: isPhone,
                     ),
                     _ChipPill(
                       text:
                           'Carbs ${_fmtMacro(totals.finalCarbs, suffix: "g")}',
+                      isPhone: isPhone,
                     ),
                     _ChipPill(
                       text: 'Fat ${_fmtMacro(totals.finalFat, suffix: "g")}',
+                      isPhone: isPhone,
                     ),
                     if (totals.selected.isNotEmpty) ...[
                       const _PillDivider(),
                       ...totals.selected.map((s) {
                         final qtyPart = s.qty > 1 ? ' x${s.qty}' : '';
-                        return _ChipPill(text: '${s.name}$qtyPart');
+                        return _ChipPill(
+                          text: '${s.name}$qtyPart',
+                          isPhone: isPhone,
+                        );
                       }),
                     ],
                   ],
                 ),
+
+                // Ingredients/description
                 if (description.trim().isNotEmpty) ...[
-                  const SizedBox(height: 8),
+                  SizedBox(height: isPhone ? 6 : 8),
                   Text(
                     description,
-                    maxLines: 2,
+                    maxLines: isPhone ? 2 : 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: Colors.black87,
                       fontWeight: FontWeight.w600,
-                      height: 1.25,
+                      height: 1.15,
+                      fontSize: isPhone ? 12.5 : 13.5,
                     ),
                   ),
                 ],
@@ -1002,20 +1154,27 @@ class _PinnedProductCard extends StatelessWidget {
 }
 
 class _HorizontalPills extends StatelessWidget {
-  const _HorizontalPills({required this.children});
+  const _HorizontalPills({
+    required this.children,
+    this.height = 34,
+    this.gap = 8,
+  });
+
   final List<Widget> children;
+  final double height;
+  final double gap;
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 34,
+      height: height,
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         physics: const BouncingScrollPhysics(),
         child: Row(
           children: [
             for (int i = 0; i < children.length; i++) ...[
-              if (i > 0) const SizedBox(width: 8),
+              if (i > 0) SizedBox(width: gap),
               children[i],
             ],
           ],
@@ -1026,23 +1185,31 @@ class _HorizontalPills extends StatelessWidget {
 }
 
 class _ChipPill extends StatelessWidget {
-  const _ChipPill({required this.text});
+  const _ChipPill({required this.text, this.isPhone = false});
+
   final String text;
+  final bool isPhone;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: EdgeInsets.symmetric(
+        horizontal: isPhone ? 9 : 10,
+        vertical: isPhone ? 5 : 6,
+      ),
       decoration: BoxDecoration(
         color: const Color(0xFFF3F3F3),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
         text,
-        style: const TextStyle(
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
           fontWeight: FontWeight.w800,
           color: Colors.black87,
-          fontSize: 12,
+          fontSize: isPhone ? 11 : 12,
+          height: 1.0,
         ),
       ),
     );
@@ -1111,7 +1278,9 @@ class _VariationGroupCard extends StatelessWidget {
                   ),
                 ),
                 child: InkWell(
-                  onTap: () => onToggle(opt),
+                  onTap: () => group.max == 1 ? onToggle(opt) : onInc(opt),
+                  onLongPress: group.max == 1 ? null : () => onDec(opt),
+
                   borderRadius: BorderRadius.circular(12),
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
@@ -1196,7 +1365,6 @@ class _VariationGroupCard extends StatelessWidget {
     );
   }
 
-  // hint reflects per-option max
   static String _selectionHint({required int min, required int max}) {
     final minText = (min > 0) ? 'Choose at least $min' : 'Optional';
     final maxText = (max > 0) ? ' • Each up to $max' : '';
@@ -1271,96 +1439,6 @@ class _PillDivider extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.black.withOpacity(0.15),
         borderRadius: BorderRadius.circular(999),
-      ),
-    );
-  }
-}
-
-class _CompactPricePill extends StatelessWidget {
-  const _CompactPricePill({
-    required this.label,
-    required this.value,
-    this.bold = false,
-  });
-
-  final String label;
-  final String value;
-  final bool bold;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF6F6F6),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(
-              fontWeight: FontWeight.w800,
-              color: Colors.black54,
-              fontSize: 12,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            value,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontWeight: bold ? FontWeight.w900 : FontWeight.w800,
-              fontSize: bold ? 15 : 14,
-              color: Colors.black87,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _QtyChipStepper extends StatelessWidget {
-  const _QtyChipStepper({
-    required this.qty,
-    required this.onDec,
-    required this.onInc,
-  });
-
-  final int qty;
-  final VoidCallback? onDec;
-  final VoidCallback? onInc;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 48,
-      padding: const EdgeInsets.symmetric(horizontal: 10),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF6F6F6),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          IconButton(
-            onPressed: onDec,
-            icon: const Icon(Icons.remove_circle_outline),
-            splashRadius: 18,
-          ),
-          Text(
-            '$qty',
-            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
-          ),
-          IconButton(
-            onPressed: onInc,
-            icon: const Icon(Icons.add_circle_outline),
-            splashRadius: 18,
-          ),
-        ],
       ),
     );
   }
