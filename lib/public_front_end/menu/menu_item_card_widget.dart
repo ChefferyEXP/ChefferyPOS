@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'menu_models.dart';
 
-import 'package:flutter/material.dart';
-
 class MenuItemCard extends StatelessWidget {
   const MenuItemCard({super.key, required this.item, required this.onTap});
 

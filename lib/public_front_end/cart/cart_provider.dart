@@ -5,8 +5,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:v0_0_0_cheffery_pos/core/global_providers/supabase_provider.dart';
-import 'package:v0_0_0_cheffery_pos/core/global_providers/pos_user_provider.dart';
-import 'package:v0_0_0_cheffery_pos/core/global_providers/pos_store_provider.dart';
+
+import 'package:v0_0_0_cheffery_pos/core/global_providers/order_flow_providers.dart'
+    as flow;
 
 // =========================================================
 // View Models
@@ -92,7 +93,7 @@ class CartItemVM {
 
   final String? instructions;
 
-  // stored as final subtotal for the line (quantity included)
+  // stored subtotal for the cart line (quantity included)
   final double lineTotal;
 
   final List<CartVariationVM> variations;
@@ -109,9 +110,10 @@ class CartItemVM {
   /// Add-ons cost for the WHOLE cart line
   double get addonsSubtotal => addonsPerItem * quantity;
 
-  double get computedFinalSubtotal => baseSubtotal + addonsSubtotal;
+  /// What the line total SHOULD be if you compute it locally
+  double get computedLineTotal => baseSubtotal + addonsSubtotal;
 
-  // Macros per configured item
+  // ---------- Macros per configured item ----------
   int get addonsCaloriesPerItem =>
       variations.fold<int>(0, (s, v) => s + (v.calories * v.quantity));
   int get addonsProteinPerItem =>
@@ -126,7 +128,7 @@ class CartItemVM {
   int get finalCarbsPerItem => baseCarbs + addonsCarbsPerItem;
   int get finalFatPerItem => baseFat + addonsFatPerItem;
 
-  // Macros for the whole line (quantity included)
+  // ---------- Macros for the whole line (quantity included) ----------
   int get finalCaloriesLine => finalCaloriesPerItem * quantity;
   int get finalProteinLine => finalProteinPerItem * quantity;
   int get finalCarbsLine => finalCarbsPerItem * quantity;
@@ -173,52 +175,15 @@ class CartItemVM {
 }
 
 // =========================================================
-// Order / Cart providers
+// Cart providers
 // =========================================================
-
-/// Finds or creates the "cart" order for the current (pos_user + store).
-/// Store-scoped cart: changing storeId yields a different order_id.
-final currentOrderIdProvider = FutureProvider<int?>((ref) async {
-  final supabase = ref.read(supabaseProvider);
-
-  final posUserId = ref.watch(activePosUserIdProvider);
-  final storeId = ref.watch(activeStoreIdProvider);
-
-  if (posUserId == null || storeId == null) return null;
-
-  final existing = await supabase
-      .from('user_current_order')
-      .select('order_id')
-      .eq('user_id', posUserId)
-      .eq('store_id', storeId)
-      .eq('status', 'cart')
-      .maybeSingle();
-
-  if (existing != null) {
-    return (existing['order_id'] as num).toInt();
-  }
-
-  final created = await supabase
-      .from('user_current_order')
-      .insert({
-        'user_id': posUserId,
-        'store_id': storeId,
-        'status': 'cart',
-        'subtotal': 0,
-        'tax': 0,
-        'total': 0,
-      })
-      .select('order_id')
-      .single();
-
-  return (created['order_id'] as num).toInt();
-});
 
 /// Loads cart items (full detail) + all variations for each line.
 final cartItemsProvider = FutureProvider<List<CartItemVM>>((ref) async {
   final supabase = ref.read(supabaseProvider);
 
-  final orderId = await ref.watch(currentOrderIdProvider.future);
+  // use global provider
+  final orderId = await ref.watch(flow.currentOrderIdProvider.future);
   if (orderId == null) return const <CartItemVM>[];
 
   // 1) Load cart lines (base snapshot)
@@ -271,37 +236,43 @@ final cartCountProvider = Provider<int>((ref) {
   );
 });
 
+/// Clears cart for a SPECIFIC orderId (best for Payment flow)
+final clearCartByOrderIdProvider =
+    Provider<Future<void> Function({required int orderId})>((ref) {
+      return ({required int orderId}) async {
+        final supabase = ref.read(supabaseProvider);
+
+        final idsRows = await supabase
+            .from('user_cart')
+            .select('cart_item_id')
+            .eq('order_id', orderId);
+
+        final idsList = (idsRows as List).cast<Map<String, dynamic>>();
+        final cartItemIds = idsList
+            .map((r) => (r['cart_item_id'] as num).toInt())
+            .toList();
+
+        if (cartItemIds.isNotEmpty) {
+          await supabase
+              .from('user_cart_variations')
+              .delete()
+              .inFilter('cart_item_id', cartItemIds);
+        }
+
+        await supabase.from('user_cart').delete().eq('order_id', orderId);
+
+        ref.invalidate(cartItemsProvider);
+        ref.invalidate(cartCountProvider);
+      };
+    });
+
 /// Clears the cart for the CURRENT order (store-scoped).
-/// Deletes variations first (FK-safe), then cart lines.
 final clearCartProvider = Provider<Future<void> Function()>((ref) {
   return () async {
-    final supabase = ref.read(supabaseProvider);
-
-    final orderId = await ref.read(currentOrderIdProvider.future);
+    final orderId = await ref.read(flow.currentOrderIdProvider.future);
     if (orderId == null) return;
 
-    // Delete variations for all cart items in this order
-    final idsRows = await supabase
-        .from('user_cart')
-        .select('cart_item_id')
-        .eq('order_id', orderId);
-
-    final idsList = (idsRows as List).cast<Map<String, dynamic>>();
-    final cartItemIds = idsList
-        .map((r) => (r['cart_item_id'] as num).toInt())
-        .toList();
-
-    if (cartItemIds.isNotEmpty) {
-      await supabase
-          .from('user_cart_variations')
-          .delete()
-          .inFilter('cart_item_id', cartItemIds);
-    }
-
-    await supabase.from('user_cart').delete().eq('order_id', orderId);
-
-    ref.invalidate(cartItemsProvider);
-    ref.invalidate(cartCountProvider);
+    await ref.read(clearCartByOrderIdProvider)(orderId: orderId);
   };
 });
 
@@ -352,8 +323,7 @@ final addToCartProvider =
         required int protein,
         required int carbs,
         required int fat,
-        required double
-        perItemFinalPrice, // final price for ONE configured item
+        required double perItemFinalPrice, // price for ONE configured item
         String? instructions,
         required List<Map<String, dynamic>> selectedVariations,
         bool mergeIfSameConfig,
@@ -376,7 +346,7 @@ final addToCartProvider =
       }) async {
         final supabase = ref.read(supabaseProvider);
 
-        final orderId = await ref.read(currentOrderIdProvider.future);
+        final orderId = await ref.read(flow.currentOrderIdProvider.future);
         if (orderId == null) {
           throw Exception('No active cart order (missing user/store).');
         }

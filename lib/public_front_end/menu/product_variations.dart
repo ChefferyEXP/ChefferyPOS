@@ -73,6 +73,28 @@ class _ProductVariationsPageState extends ConsumerState<ProductVariationsPage> {
       ? v.toDouble()
       : (v is String ? (double.tryParse(v.trim()) ?? 0.0) : 0.0);
 
+  int _sizeRank(String name) {
+    final s = name.trim().toLowerCase();
+
+    // common variants
+    if (s == 's' || s.contains('small')) return 0;
+    if (s == 'm' || s.contains('medium')) return 1;
+    if (s == 'l' && !s.contains('xl')) return 2; // plain "L"
+    if (s.contains('extra large') ||
+        s.contains('x-large') ||
+        s.contains('xlarge') ||
+        s == 'xl')
+      return 3;
+
+    // optional: support XXL etc (keep after XL)
+    if (s.contains('xxl') ||
+        s.contains('2xl') ||
+        s.contains('extra extra large'))
+      return 4;
+
+    return 999; // unknown sizes go last
+  }
+
   // =========================================================
   // Load: product + groups + options
   // =========================================================
@@ -222,10 +244,39 @@ class _ProductVariationsPageState extends ConsumerState<ProductVariationsPage> {
       // Build final groups list in a stable order
       _groups.clear();
 
-      final typeIds = groupMetaByTypeId.keys.toList()..sort();
+      final typeIds = groupMetaByTypeId.keys.toList();
+
+      // Put "Size" group first (case-insensitive), keep the rest in stable order by title
+      typeIds.sort((a, b) {
+        final ta = (groupMetaByTypeId[a]?.title ?? '').trim().toLowerCase();
+        final tb = (groupMetaByTypeId[b]?.title ?? '').trim().toLowerCase();
+
+        final aIsSize = ta == 'size';
+        final bIsSize = tb == 'size';
+
+        if (aIsSize && !bIsSize) return -1;
+        if (!aIsSize && bIsSize) return 1;
+
+        // fallback (what you had before: numeric id order)
+        return a.compareTo(b);
+      });
+
       for (final typeId in typeIds) {
         final meta = groupMetaByTypeId[typeId]!;
         final opts = optionsByTypeId[typeId] ?? <_VariationOptionVM>[];
+
+        // If this is the "Size" group, order options: S, M, L, XL (then anything else)
+        if (meta.title.trim().toLowerCase() == 'size') {
+          opts.sort((a, b) {
+            final ra = _sizeRank(a.name);
+            final rb = _sizeRank(b.name);
+
+            if (ra != rb) return ra.compareTo(rb);
+
+            // tie-breaker for weird labels (keeps deterministic ordering)
+            return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+          });
+        }
 
         // Radio group sanity: if max==1, keep only first default
         if (meta.max == 1) {

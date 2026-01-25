@@ -7,6 +7,9 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:v0_0_0_cheffery_pos/core/global_providers/order_flow_providers.dart'
+    as flow;
+
 class PaymentPage extends ConsumerStatefulWidget {
   const PaymentPage({super.key, required this.total});
 
@@ -26,18 +29,18 @@ class _PaymentPageState extends ConsumerState<PaymentPage>
     'assets/logos/cheffery.png',
   ];
 
+  static const double _taxRate = 0.13;
+
   late final AnimationController _controller;
 
   String _money(num v) => '\$${v.toStringAsFixed(2)}';
   static const double _twoPi = 6.283185307179586;
 
+  bool _markingPaid = false;
+
   @override
   void initState() {
     super.initState();
-
-    // One controller drives both:
-    // - ring rotation: continuous loop
-    // - card breathe: sin wave derived from controller value
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 2000),
@@ -71,15 +74,63 @@ class _PaymentPageState extends ConsumerState<PaymentPage>
     );
   }
 
+  Future<void> _paymentSuccess() async {
+    if (_markingPaid) return;
+    setState(() => _markingPaid = true);
+
+    try {
+      // IMPORTANT: get the CURRENT cart order id
+      final int? orderId = await ref.read(flow.currentOrderIdProvider.future);
+
+      if (orderId == null) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No active order (missing user/store).'),
+          ),
+        );
+        return;
+      }
+
+      // 1) Mark order placed (payment success)
+      await ref.read(flow.markOrderPlacedProvider)(
+        orderId: orderId,
+        total: widget.total,
+        taxRate: _taxRate,
+      );
+
+      // 2) DO NOT clear cart here.
+      // The store monitor + CurrentOrderPage rely on user_cart rows
+      // until the store presses "Complete Order".
+
+      // 3) Refresh anything that might show cart/order state
+      ref.invalidate(flow.orderByIdProvider(orderId));
+      ref.invalidate(flow.orderLinesByOrderIdProvider(orderId));
+      ref.invalidate(flow.currentOrderIdProvider);
+
+      // Optionally refresh the cart badge:
+      // ref.invalidate(cart.cartItemsProvider);
+      // ref.invalidate(cart.cartCountProvider);
+
+      // 4) Go back to welcome
+      if (!mounted) return;
+      Navigator.of(context).pushNamedAndRemoveUntil('/welcome', (_) => false);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to mark payment success.\n$e')),
+      );
+    } finally {
+      if (mounted) setState(() => _markingPaid = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     const double outerSize = 240;
     const double ringThickness = 10;
-
     const double cardW = 160;
     const double cardH = 100;
-
-    // Extra room so rotation + shadows never overflow
     const double spinPad = 30;
 
     return Scaffold(
@@ -90,7 +141,7 @@ class _PaymentPageState extends ConsumerState<PaymentPage>
         foregroundColor: Colors.black87,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: _markingPaid ? null : () => Navigator.of(context).pop(),
         ),
         title: const Text(
           'Payment',
@@ -122,16 +173,11 @@ class _PaymentPageState extends ConsumerState<PaymentPage>
                         AnimatedBuilder(
                           animation: _controller,
                           builder: (context, _) {
-                            // ring rotation (continuous)
                             final ringAngle = _controller.value * _twoPi;
-
-                            // breathe (guaranteed 0..1)
                             final breathe01 = (1 + math.sin(ringAngle)) / 2;
                             final t = Curves.easeInOut.transform(breathe01);
 
-                            final scale = 0.94 + (0.06 * t); // 0.94 -> 1.00
-
-                            // subtle breathing shadow
+                            final scale = 0.94 + (0.06 * t);
                             final shadowBlur = 12 + (6 * t);
                             final shadowY = 8 + (4 * t);
                             final shadowOpacity = 0.07 + (0.03 * t);
@@ -146,7 +192,6 @@ class _PaymentPageState extends ConsumerState<PaymentPage>
                                   child: Stack(
                                     alignment: Alignment.center,
                                     children: [
-                                      // Rotating gradient ring ONLY
                                       Transform.rotate(
                                         angle: ringAngle,
                                         child: Container(
@@ -175,8 +220,6 @@ class _PaymentPageState extends ConsumerState<PaymentPage>
                                           ),
                                         ),
                                       ),
-
-                                      // Stationary inner cutout
                                       Container(
                                         width: outerSize - (ringThickness * 2),
                                         height: outerSize - (ringThickness * 2),
@@ -191,8 +234,6 @@ class _PaymentPageState extends ConsumerState<PaymentPage>
                                           ),
                                         ),
                                       ),
-
-                                      // Stationary (but breathing) card
                                       Transform.scale(
                                         scale: scale,
                                         child: Container(
@@ -254,8 +295,6 @@ class _PaymentPageState extends ConsumerState<PaymentPage>
                                                         12,
                                                       ),
                                                   child: Column(
-                                                    mainAxisSize:
-                                                        MainAxisSize.max,
                                                     crossAxisAlignment:
                                                         CrossAxisAlignment
                                                             .stretch,
@@ -314,87 +353,7 @@ class _PaymentPageState extends ConsumerState<PaymentPage>
                                                           ),
                                                         ],
                                                       ),
-                                                      const SizedBox(height: 6),
-                                                      Flexible(
-                                                        child: Align(
-                                                          alignment: Alignment
-                                                              .bottomCenter,
-                                                          child: Row(
-                                                            children: [
-                                                              Container(
-                                                                width: 32,
-                                                                height: 22,
-                                                                decoration: BoxDecoration(
-                                                                  color: Colors
-                                                                      .black
-                                                                      .withOpacity(
-                                                                        0.06,
-                                                                      ),
-                                                                  borderRadius:
-                                                                      BorderRadius.circular(
-                                                                        8,
-                                                                      ),
-                                                                  border: Border.all(
-                                                                    color: Colors
-                                                                        .black
-                                                                        .withOpacity(
-                                                                          0.10,
-                                                                        ),
-                                                                  ),
-                                                                ),
-                                                              ),
-                                                              const SizedBox(
-                                                                width: 10,
-                                                              ),
-                                                              Expanded(
-                                                                child: Column(
-                                                                  mainAxisSize:
-                                                                      MainAxisSize
-                                                                          .min,
-                                                                  crossAxisAlignment:
-                                                                      CrossAxisAlignment
-                                                                          .start,
-                                                                  children: [
-                                                                    Container(
-                                                                      height: 6,
-                                                                      width: 70,
-                                                                      decoration: BoxDecoration(
-                                                                        color: Colors
-                                                                            .black
-                                                                            .withOpacity(
-                                                                              0.06,
-                                                                            ),
-                                                                        borderRadius:
-                                                                            BorderRadius.circular(
-                                                                              99,
-                                                                            ),
-                                                                      ),
-                                                                    ),
-                                                                    const SizedBox(
-                                                                      height: 5,
-                                                                    ),
-                                                                    Container(
-                                                                      height: 6,
-                                                                      width: 95,
-                                                                      decoration: BoxDecoration(
-                                                                        color: Colors
-                                                                            .black
-                                                                            .withOpacity(
-                                                                              0.05,
-                                                                            ),
-                                                                        borderRadius:
-                                                                            BorderRadius.circular(
-                                                                              99,
-                                                                            ),
-                                                                      ),
-                                                                    ),
-                                                                  ],
-                                                                ),
-                                                              ),
-                                                            ],
-                                                          ),
-                                                        ),
-                                                      ),
+                                                      const Spacer(),
                                                     ],
                                                   ),
                                                 ),
@@ -418,6 +377,37 @@ class _PaymentPageState extends ConsumerState<PaymentPage>
                             fontSize: 22,
                             color: Colors.black87,
                             letterSpacing: 0.2,
+                          ),
+                        ),
+                        const SizedBox(height: 18),
+                        SizedBox(
+                          width: double.infinity,
+                          height: 52,
+                          child: ElevatedButton(
+                            onPressed: _markingPaid ? null : _paymentSuccess,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.black,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                            ),
+                            child: _markingPaid
+                                ? const SizedBox(
+                                    width: 22,
+                                    height: 22,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : const Text(
+                                    'Payment Success',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 15,
+                                    ),
+                                  ),
                           ),
                         ),
                       ],

@@ -108,7 +108,6 @@ class _GetUserPhoneNumberPageState
       if (storePhoneE164.isNotEmpty && storePhoneE164 == e164) {
         if (!mounted) return;
 
-        // same behavior as StoreProfilePage logout
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (_) => const AuthRouter()),
           (route) => false,
@@ -126,13 +125,13 @@ class _GetUserPhoneNumberPageState
       // Look for existing POS user
       final resp = await supabase
           .from('pos_users')
-          .select('id, first_name')
+          .select('id, first_name, phone_number')
           .eq('phone_number', e164)
           .maybeSingle();
 
       // If found -> set active customer + go to menu
       if (resp != null) {
-        final id = resp['id'] as int;
+        final id = (resp['id'] as num).toInt();
 
         ref.read(activePosUserIdProvider.notifier).state = id;
         ref.read(activePosUserPhoneProvider.notifier).state = e164;
@@ -150,7 +149,7 @@ class _GetUserPhoneNumberPageState
         return;
       }
 
-      // If not found -> go to first name screen
+      // If not found -> go to first name screen (this is where you'll insert is_guest=false)
       if (!mounted) return;
       Navigator.pushReplacementNamed(
         context,
@@ -165,6 +164,53 @@ class _GetUserPhoneNumberPageState
       if (mounted) {
         setState(() => _loading = false);
       }
+    }
+  }
+
+  Future<void> _continueAsGuest() async {
+    if (_loading) return;
+
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+
+    try {
+      final supabase = ref.read(supabaseProvider);
+
+      // If we already have an active POS user in memory, just continue
+      final existingId = ref.read(activePosUserIdProvider);
+      if (existingId != null) {
+        if (!mounted) return;
+        Navigator.pushReplacementNamed(context, '/menu');
+        return;
+      }
+
+      // Create guest POS user
+      final created = await supabase
+          .from('pos_users')
+          .insert({
+            'phone_number': null,
+            'first_name': 'Guest',
+            'is_guest': true,
+            'last_seen_at': DateTime.now().toIso8601String(),
+          })
+          .select('id, first_name')
+          .single();
+
+      final id = (created['id'] as num).toInt();
+
+      ref.read(activePosUserIdProvider.notifier).state = id;
+      ref.read(activePosUserPhoneProvider.notifier).state = null;
+      ref.read(activePosUserFirstNameProvider.notifier).state =
+          (created['first_name'] as String?)?.trim();
+
+      if (!mounted) return;
+      Navigator.pushReplacementNamed(context, '/menu');
+    } catch (e) {
+      setState(() => _error = 'Could not continue as guest. Please try again.');
+    } finally {
+      if (mounted) setState(() => _loading = false);
     }
   }
 
@@ -324,6 +370,38 @@ class _GetUserPhoneNumberPageState
                                     ),
                                   )
                                 : Text('Continue', style: AppTextStyles.button),
+                          ),
+                        ),
+
+                        const SizedBox(height: 12),
+
+                        SizedBox(
+                          height: 56,
+                          child: OutlinedButton(
+                            onPressed: _loading ? null : _continueAsGuest,
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.white,
+                              side: BorderSide(
+                                color: Colors.white.withOpacity(0.45),
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              backgroundColor: Colors.white.withOpacity(0.06),
+                            ),
+                            child: _loading
+                                ? const SizedBox(
+                                    width: 24,
+                                    height: 24,
+                                    child: CircularProgressIndicator(
+                                      color: Colors.white,
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : Text(
+                                    'Continue as Guest',
+                                    style: AppTextStyles.button,
+                                  ),
                           ),
                         ),
                       ],

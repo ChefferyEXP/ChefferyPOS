@@ -76,12 +76,13 @@ class _GetUserFirstNamePageState extends ConsumerState<GetUserFirstNamePage> {
           .insert({
             'phone_number': phoneE164,
             'first_name': firstName,
+            'is_guest': false,
             // created_at + last_seen_at handled by defaults
           })
-          .select('id, phone_number, first_name')
+          .select('id, phone_number, first_name, is_guest')
           .single();
 
-      final id = created['id'] as int;
+      final id = (created['id'] as num).toInt();
       final phone = (created['phone_number'] as String?) ?? phoneE164;
       final name = (created['first_name'] as String?)?.trim();
 

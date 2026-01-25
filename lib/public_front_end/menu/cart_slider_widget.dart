@@ -350,7 +350,6 @@ class _CartSlideOverState extends ConsumerState<CartSlideOver> {
                                   confirmDismiss: (_) =>
                                       _confirmRemove(context, item.productName),
                                   onDismissed: (_) {
-                                    // Optimistically hide immediately
                                     _removeItemOptimistic(
                                       context: context,
                                       cartItemId: item.cartItemId,
@@ -383,20 +382,40 @@ class _CartSlideOverState extends ConsumerState<CartSlideOver> {
                                         suffix: 'g',
                                       ),
                                     ],
+
+                                    // Pills are placed ONLY here, under Add-ons
                                     breakdown: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         _miniLine('Base', _money(baseSubtotal)),
-                                        const SizedBox(height: 4),
-                                        _miniLine(
-                                          'Add-ons',
-                                          _money(addonsSubtotal),
-                                        ),
+
                                         const SizedBox(height: 6),
                                         Divider(
                                           height: 1,
                                           color: Colors.black.withOpacity(0.08),
                                         ),
                                         const SizedBox(height: 6),
+
+                                        _miniLine(
+                                          'Add-ons',
+                                          _money(addonsSubtotal),
+                                        ),
+
+                                        if (item.variations.isNotEmpty) ...[
+                                          const SizedBox(height: 8),
+                                          _VariationRow(
+                                            variations: item.variations,
+                                          ),
+                                        ],
+
+                                        const SizedBox(height: 6),
+                                        Divider(
+                                          height: 1,
+                                          color: Colors.black.withOpacity(0.08),
+                                        ),
+                                        const SizedBox(height: 6),
+
                                         _miniLine(
                                           'Total',
                                           _money(shownLineTotal),
@@ -404,7 +423,10 @@ class _CartSlideOverState extends ConsumerState<CartSlideOver> {
                                         ),
                                       ],
                                     ),
+
+                                    // kept for compatibility; card does NOT render them
                                     variations: item.variations,
+
                                     onRemove: () async {
                                       final ok = await _confirmRemove(
                                         context,
@@ -618,7 +640,7 @@ class _CartItemCard extends StatelessWidget {
     required this.qty,
     required this.macros,
     required this.breakdown,
-    required this.variations,
+    required this.variations, // kept for API compatibility; NOT rendered here
     required this.onRemove,
     required this.onDec,
     required this.onInc,
@@ -630,8 +652,14 @@ class _CartItemCard extends StatelessWidget {
   final int qty;
   final String? instructions;
   final List<Widget> macros;
+
+  /// control placement of add-on pills INSIDE this widget.
+  /// Put them right under the "Add-ons" line in the breakdown pass in.
   final Widget breakdown;
+
+  /// Kept for compatibility, but the card will NOT auto-render these anymore.
   final List<dynamic> variations;
+
   final VoidCallback onRemove;
   final VoidCallback onDec;
   final VoidCallback onInc;
@@ -741,6 +769,7 @@ class _CartItemCard extends StatelessWidget {
           const SizedBox(height: 10),
 
           // ================= Breakdown =================
+          // Put _VariationRow inside `breakdown` under Add-ons and you're done.
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
@@ -750,32 +779,34 @@ class _CartItemCard extends StatelessWidget {
             ),
             child: breakdown,
           ),
-
-          // ================= Variations (CENTERED + SCROLLABLE)=================
-          if (variations.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            LayoutBuilder(
-              builder: (context, constraints) {
-                return SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  physics: const BouncingScrollPhysics(),
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(minWidth: constraints.maxWidth),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        for (int i = 0; i < variations.length; i++) ...[
-                          if (i > 0) const SizedBox(width: 8),
-                          _VariationChip(v: variations[i]),
-                        ],
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
-          ],
         ],
+      ),
+    );
+  }
+}
+
+class _VariationRow extends StatelessWidget {
+  const _VariationRow({required this.variations});
+
+  final List<dynamic> variations;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity, // 👈 force full width
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.start, // 👈 left aligned
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            for (int i = 0; i < variations.length; i++) ...[
+              if (i > 0) const SizedBox(width: 8),
+              _VariationChip(v: variations[i]),
+            ],
+          ],
+        ),
       ),
     );
   }
