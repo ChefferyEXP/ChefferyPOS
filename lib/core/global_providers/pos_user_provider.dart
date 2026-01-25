@@ -13,3 +13,15 @@ final activePosUserFirstNameProvider = StateProvider<String?>((ref) => null);
 final hasActivePosUserProvider = Provider<bool>((ref) {
   return ref.watch(activePosUserIdProvider) != null;
 });
+
+/// Display name helper
+final activePosUserDisplayNameProvider = Provider<String>((ref) {
+  final name = ref.watch(activePosUserFirstNameProvider);
+  return (name == null || name.trim().isEmpty) ? 'Guest' : name.trim();
+});
+
+/// Guest helper
+final isGuestPosUserProvider = Provider<bool>((ref) {
+  final phone = ref.watch(activePosUserPhoneProvider);
+  return phone == null || phone.trim().isEmpty;
+});

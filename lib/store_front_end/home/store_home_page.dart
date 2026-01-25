@@ -11,6 +11,7 @@ import 'package:v0_0_0_cheffery_pos/store_front_end/live/go_live_public.dart';
 import 'package:v0_0_0_cheffery_pos/store_front_end/profile/store_profile.dart';
 import 'package:v0_0_0_cheffery_pos/store_front_end/store_providers/store_info_provider.dart';
 import 'package:v0_0_0_cheffery_pos/store_front_end/menu_management/menu_management_page.dart';
+import 'package:v0_0_0_cheffery_pos/store_front_end/transactions/sales_home_page.dart';
 
 class StoreHomePage extends ConsumerWidget {
   const StoreHomePage({super.key});
@@ -255,9 +256,15 @@ class StoreHomePage extends ConsumerWidget {
                           Expanded(
                             child: _ActionCard(
                               icon: Icons.insights_outlined,
-                              title: 'My Analytics',
-                              subtitle: 'Sales & trends',
-                              onTap: () {},
+                              title: 'Transactions',
+                              subtitle: 'View store transactions data',
+                              onTap: () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => const SalesPage(),
+                                  ),
+                                );
+                              },
                             ),
                           ),
                           const SizedBox(width: 14),

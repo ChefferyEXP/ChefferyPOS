@@ -93,8 +93,6 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
 
     try {
       await ref.read(removeCartItemProvider)(cartItemId);
-
-      // Force refresh
       ref.invalidate(cartItemsProvider);
 
       if (showSnack && context.mounted) {
@@ -103,7 +101,6 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
         ).showSnackBar(SnackBar(content: Text('Removed "$productName"')));
       }
     } catch (e) {
-      // Put it back if delete failed
       if (mounted) {
         setState(() => _pendingRemove.remove(cartItemId));
       }
@@ -198,7 +195,6 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
               );
             }
 
-            // Hide pending removed items immediately
             final visible = items
                 .where((it) => !_pendingRemove.contains(it.cartItemId))
                 .toList();
@@ -222,10 +218,19 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
             final tax = subtotal * taxRate;
             final total = subtotal + tax;
 
+            final bottomInset = MediaQuery.of(context).padding.bottom;
+            const double bottomPanelH = 190;
+            const double gap = 14;
+
             return Stack(
               children: [
                 ListView(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 160),
+                  padding: EdgeInsets.fromLTRB(
+                    16,
+                    8,
+                    16,
+                    bottomInset + bottomPanelH + gap,
+                  ),
                   children: [
                     Container(
                       padding: const EdgeInsets.all(14),
@@ -335,17 +340,34 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
                               ),
                               _macroPill(label: 'Fat', value: fat, suffix: 'g'),
                             ],
+
+                            // chips here (under Add-ons), left-aligned
                             breakdown: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 _miniLine('Base', _money(baseSubtotal)),
-                                const SizedBox(height: 4),
-                                _miniLine('Add-ons', _money(addonsSubtotal)),
+
                                 const SizedBox(height: 6),
                                 Divider(
                                   height: 1,
                                   color: Colors.black.withOpacity(0.08),
                                 ),
                                 const SizedBox(height: 6),
+
+                                _miniLine('Add-ons', _money(addonsSubtotal)),
+
+                                if (item.variations.isNotEmpty) ...[
+                                  const SizedBox(height: 8),
+                                  _VariationRow(variations: item.variations),
+                                ],
+
+                                const SizedBox(height: 6),
+                                Divider(
+                                  height: 1,
+                                  color: Colors.black.withOpacity(0.08),
+                                ),
+                                const SizedBox(height: 6),
+
                                 _miniLine(
                                   'Total',
                                   _money(shownLineTotal),
@@ -353,7 +375,10 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
                                 ),
                               ],
                             ),
+
+                            // kept for API compatibility; NOT auto-rendered by card
                             variations: item.variations,
+
                             onRemove: () async {
                               final ok = await _confirmRemove(
                                 context,
@@ -385,6 +410,8 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
                         ),
                       );
                     }),
+
+                    const SizedBox(height: 8),
                   ],
                 ),
 
@@ -436,7 +463,6 @@ class _CheckoutPageState extends ConsumerState<CheckoutPage> {
                                     ),
                                   );
                                 },
-
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: Colors.black,
                                   shape: RoundedRectangleBorder(
@@ -475,7 +501,7 @@ class _CartItemCard extends StatelessWidget {
     required this.qty,
     required this.macros,
     required this.breakdown,
-    required this.variations,
+    required this.variations, // kept for API compatibility; NOT rendered here
     required this.onRemove,
     required this.onDec,
     required this.onInc,
@@ -487,8 +513,13 @@ class _CartItemCard extends StatelessWidget {
   final int qty;
   final String? instructions;
   final List<Widget> macros;
+
+  // You control placement (chips are placed in breakdown under Add-ons)
   final Widget breakdown;
+
+  // Kept for compatibility, but NOT auto-rendered
   final List<dynamic> variations;
+
   final VoidCallback onRemove;
   final VoidCallback onDec;
   final VoidCallback onInc;
@@ -597,7 +628,7 @@ class _CartItemCard extends StatelessWidget {
 
           const SizedBox(height: 10),
 
-          // ================= Breakdown =================
+          // ================= Breakdown (ONLY) =================
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
@@ -607,32 +638,34 @@ class _CartItemCard extends StatelessWidget {
             ),
             child: breakdown,
           ),
-
-          // ================= Variations (CENTERED + SCROLLABLE) =================
-          if (variations.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            LayoutBuilder(
-              builder: (context, constraints) {
-                return SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  physics: const BouncingScrollPhysics(),
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(minWidth: constraints.maxWidth),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        for (int i = 0; i < variations.length; i++) ...[
-                          if (i > 0) const SizedBox(width: 8),
-                          _VariationChip(v: variations[i]),
-                        ],
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
-          ],
         ],
+      ),
+    );
+  }
+}
+
+class _VariationRow extends StatelessWidget {
+  const _VariationRow({required this.variations});
+
+  final List<dynamic> variations;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            for (int i = 0; i < variations.length; i++) ...[
+              if (i > 0) const SizedBox(width: 8),
+              _VariationChip(v: variations[i]),
+            ],
+          ],
+        ),
       ),
     );
   }
