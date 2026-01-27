@@ -332,10 +332,6 @@ class _ProductVariationsPageState extends ConsumerState<ProductVariationsPage> {
   // - MAX is per-option quantity cap (except max==1 radio groups)
   // =========================================================
 
-  int _qtySum(_VariationGroupVM group) {
-    return group.options.fold<int>(0, (s, o) => s + o.quantity);
-  }
-
   String? _validateSelections() {
     for (final g in _groups) {
       final sumQty = _qtySum(g);
@@ -349,10 +345,16 @@ class _ProductVariationsPageState extends ConsumerState<ProductVariationsPage> {
   }
 
   // --- UI actions ---
+  int _qtySum(_VariationGroupVM group) {
+    return group.options.fold<int>(0, (s, o) => s + o.quantity);
+  }
+
+  bool _isSingleSelect(_VariationGroupVM g) => g.max == 1;
+
   void _toggleSingleSelect(_VariationGroupVM group, _VariationOptionVM opt) {
-    // Radio group (max == 1 means single-select)
-    if (group.max == 1) {
-      // Required single-select group: do not allow going to zero
+    // Single-select group: max == 1
+    if (_isSingleSelect(group)) {
+      // Required single-select: can't go to zero
       if (group.min == 1 && opt.quantity > 0) return;
 
       for (final o in group.options) {
@@ -363,17 +365,14 @@ class _ProductVariationsPageState extends ConsumerState<ProductVariationsPage> {
       return;
     }
 
-    // Non-radio group: toggle 0 <-> 1 (still respects min; max is per-option)
+    // Multi-select group (checkbox-style): toggle 0 <-> 1
     if (opt.quantity > 0) {
       // turning OFF: ensure not violating min
-      if (group.min > 0) {
-        final sumQty = _qtySum(group);
-        if (sumQty <= group.min) return; // would go below min
-      }
+      if (group.min > 0 && _qtySum(group) <= group.min) return;
       opt.quantity = 0;
     } else {
-      // per-option max check
-      if (group.max > 0 && 1 > group.max) return;
+      // turning ON: enforce GROUP MAX
+      if (group.max > 0 && (_qtySum(group) + 1) > group.max) return;
       opt.quantity = 1;
     }
 
@@ -381,14 +380,18 @@ class _ProductVariationsPageState extends ConsumerState<ProductVariationsPage> {
   }
 
   void _inc(_VariationGroupVM group, _VariationOptionVM opt) {
-    // Radio group: keep as 0/1
-    if (group.max == 1) {
+    // If your DB uses group max_selection, then allowing quantities >1
+    // will blow up selection counts. So only allow quantities >1 if you
+    // truly want "quantity in group". If so, group.max must account for it.
+
+    if (_isSingleSelect(group)) {
+      // behave like selecting (no increment)
       _toggleSingleSelect(group, opt);
       return;
     }
 
-    // per-option max
-    if (group.max > 0 && opt.quantity >= group.max) return;
+    // enforce GROUP MAX
+    if (group.max > 0 && (_qtySum(group) + 1) > group.max) return;
 
     opt.quantity += 1;
     setState(() {});
@@ -397,19 +400,16 @@ class _ProductVariationsPageState extends ConsumerState<ProductVariationsPage> {
   void _dec(_VariationGroupVM group, _VariationOptionVM opt) {
     if (opt.quantity <= 0) return;
 
-    // Radio group: do not allow going to 0 if required
-    if (group.max == 1) {
+    if (_isSingleSelect(group)) {
+      // required single select cannot go to 0
       if (group.min == 1) return;
       opt.quantity = 0;
       setState(() {});
       return;
     }
 
-    // If this would reduce group sum below min, block
-    if (group.min > 0) {
-      final sumQty = _qtySum(group);
-      if (sumQty <= group.min) return;
-    }
+    // enforce MIN (group total)
+    if (group.min > 0 && _qtySum(group) <= group.min) return;
 
     opt.quantity -= 1;
     setState(() {});
@@ -514,6 +514,27 @@ class _ProductVariationsPageState extends ConsumerState<ProductVariationsPage> {
         context,
       ).showSnackBar(SnackBar(content: Text(ruleError)));
       return;
+    }
+
+    // sanitize radio groups (max==1) before building payload
+    for (final g in _groups) {
+      if (g.max == 1) {
+        bool found = false;
+        for (final o in g.options) {
+          if (o.quantity > 0) {
+            if (!found) {
+              o.quantity = 1;
+              found = true;
+            } else {
+              o.quantity = 0;
+            }
+          }
+        }
+        // If required and none selected, select first
+        if (g.min == 1 && !found && g.options.isNotEmpty) {
+          g.options.first.quantity = 1;
+        }
+      }
     }
 
     final row = _productRow ?? {};
